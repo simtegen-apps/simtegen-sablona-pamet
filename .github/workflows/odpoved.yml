@@ -1,0 +1,58 @@
+# Odpověď zákazníkovi: komentář „odpoved: …“ na issue se štítkem hlaseni
+# (od majitele nebo od firmy jeho jménem) se zapíše k hlášení v databázi
+# produktu a zákazník ji uvidí v aplikaci. Issue se zavře.
+#
+# Proč takhle: aplikace ani SimteGen nemají přístup k databázi produktu
+# (org secrets žijí jen v Actions). Komentář na GitHubu umí napsat majitel
+# z telefonu i SimteGen svým tokenem — jedna cesta, dva odesílatelé.
+# Komentář kohokoli jiného (cizí účet) se ignoruje.
+
+name: Odpoved
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  zapis:
+    if: >-
+      startsWith(github.event.comment.body, 'odpoved:') &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
+      contains(join(github.event.issue.labels.*.name, ','), 'hlaseni')
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Zapis odpoved k hlaseni
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PROJEKT: ${{ github.event.repository.name }}
+          TITUL: ${{ github.event.issue.title }}
+          KOMENTAR: ${{ github.event.comment.body }}
+        run: |
+          set -euo pipefail
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "Org secrets CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID nejsou dostupne."
+            exit 1
+          fi
+          id=$(printf '%s' "$TITUL" | sed -n 's/^Hlášení #\([0-9]\+\).*/\1/p')
+          if [ -z "$id" ]; then
+            echo "Titulek issue neni 'Hlášení #N' - nic nezapisuji."
+            exit 0
+          fi
+          # Strip the marker, cap the length, double apostrophes for SQL
+          # text (wrangler has no bind parameters on the CLI).
+          odpoved=$(printf '%s' "$KOMENTAR" | sed '1s/^odpoved:[[:space:]]*//' | head -c 2000 | sed "s/'/''/g")
+          SQL="UPDATE hlaseni SET odpoved = '$odpoved', stav = 'vyrizeno', zmeneno = unixepoch() WHERE id = $id;"
+          npx --yes wrangler@3 d1 execute "$PROJEKT-db" --remote --command "$SQL" > /dev/null
+          echo "Odpoved k hlaseni $id zapsana."
+
+      - name: Zavri issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh issue close "${{ github.event.issue.number }}" --repo "${{ github.repository }}" --comment "Odpověď byla doručena zákazníkovi do aplikace."

@@ -1,0 +1,140 @@
+# Nasazení na Cloudflare Pages + D1 (šablona s pamětí).
+#
+# Push do main = produkce (https://<repo>.pages.dev), push větve build/* =
+# preview (https://<větev>.<repo>.pages.dev) s VLASTNÍ databází <repo>-db-nahled
+# — test PR se nikdy nedotkne zákaznických dat. Merge dělá výhradně člověk;
+# SimteGen na tenhle soubor nesahá — jeho token nemá právo na workflow
+# soubory a GitHub takový push odmítne celý.
+#
+# Org-level secrets: CLOUDFLARE_API_TOKEN (Pages:Edit + D1:Edit),
+# CLOUDFLARE_ACCOUNT_ID. Volitelně RESEND_API_KEY (secret) a EMAIL_ODESILATEL
+# (variable) — bez nich běží přihlášení ve vývojovém režimu (odkaz v odpovědi)
+# a produkce se skutečnými zákazníky se nesmí spustit.
+
+name: Nasazeni
+
+on:
+  push:
+    branches:
+      - main
+      - "build/**"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Org secrets on the Free plan reach only PUBLIC repositories. Without
+      # this guard a private repo fails three steps later with wrangler's
+      # generic "set CLOUDFLARE_API_TOKEN" — true, but pointing nowhere.
+      - name: Kontrola secrets
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "Org secrets CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID nejsou v tomto repu dostupne."
+            echo "Nejcastejsi pricina: repo je Private — org secrets na Free planu plati jen pro Public repa."
+            echo "Prepni Settings -> General -> Visibility na Public a spust workflow znovu."
+            exit 1
+          fi
+
+      - name: Kontrola manifestu proti kodu
+        run: python3 kontrola_manifestu.py
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Zajisti Pages projekt
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PROJECT: ${{ github.event.repository.name }}
+        run: npx --yes wrangler@3 pages project create "$PROJECT" --production-branch=main || true
+
+      # D1 databases are born on first deploy and found on every later one.
+      # Location hint weur pins the primary instance to Western Europe — the
+      # policy's "data v EU" claim depends on this flag, do not remove it.
+      - name: Zajisti databaze a vygeneruj wrangler.toml
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PROJECT: ${{ github.event.repository.name }}
+        run: |
+          set -euo pipefail
+          zajisti_db() {
+            local nazev="$1"
+            local id
+            id=$(npx --yes wrangler@3 d1 list --json | jq -r ".[] | select(.name == \"$nazev\") | .uuid")
+            if [ -z "$id" ]; then
+              npx --yes wrangler@3 d1 create "$nazev" --location weur >&2
+              id=$(npx --yes wrangler@3 d1 list --json | jq -r ".[] | select(.name == \"$nazev\") | .uuid")
+            fi
+            [ -n "$id" ] || { echo "Databázi $nazev se nepodařilo zajistit." >&2; exit 1; }
+            echo "$id"
+          }
+          DB_ID=$(zajisti_db "$PROJECT-db")
+          NAHLED_ID=$(zajisti_db "$PROJECT-db-nahled")
+          sed -e "s/__PROJEKT__/$PROJECT/g" \
+              -e "s/__DB_ID__/$DB_ID/g" \
+              -e "s/__DB_NAHLED_ID__/$NAHLED_ID/g" \
+              wrangler.toml.sablona > wrangler.toml
+
+      - name: Migrace databaze
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PROJECT: ${{ github.event.repository.name }}
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_REF_NAME" = "main" ]; then
+            npx --yes wrangler@3 d1 migrations apply "$PROJECT-db" --remote
+          else
+            npx --yes wrangler@3 d1 migrations apply "$PROJECT-db-nahled" --remote --env preview
+          fi
+
+      # The mailbox mirrors customer reports as issues in THIS repo. The
+      # token is an org secret (fine-grained, Issues: write on product
+      # repos); without it reports stay in the app only. Production only —
+      # preview deployments must never open issues from test data.
+      - name: Schranka (hlaseni jako issues)
+        if: github.ref_name == 'main' && env.GITHUB_ISSUES_TOKEN != ''
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PROJECT: ${{ github.event.repository.name }}
+          GITHUB_ISSUES_TOKEN: ${{ secrets.GITHUB_ISSUES_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GITHUB_ISSUES_TOKEN" | npx --yes wrangler@3 pages secret put GITHUB_ISSUES_TOKEN --project-name "$PROJECT"
+          printf '%s' "$REPO" | npx --yes wrangler@3 pages secret put GITHUB_REPO --project-name "$PROJECT"
+
+      # The mail key exists only in production: preview stays in the
+      # development login mode (link in the response), which is exactly what
+      # reviewing a build branch needs.
+      - name: Prihlasovaci e-maily pro produkci
+        if: github.ref_name == 'main' && vars.EMAIL_ODESILATEL != ''
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PROJECT: ${{ github.event.repository.name }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          EMAIL_ODESILATEL: ${{ vars.EMAIL_ODESILATEL }}
+        run: |
+          set -euo pipefail
+          [ -n "$RESEND_API_KEY" ] || { echo "EMAIL_ODESILATEL je nastaven, ale RESEND_API_KEY chybí."; exit 1; }
+          printf '%s' "$RESEND_API_KEY" | npx --yes wrangler@3 pages secret put RESEND_API_KEY --project-name "$PROJECT"
+          printf '%s' "$EMAIL_ODESILATEL" | npx --yes wrangler@3 pages secret put EMAIL_ODESILATEL --project-name "$PROJECT"
+          # Orders go to the operator's contact address (manifest), falling back to the sender.
+          KONTAKT=$(python3 -c "import json;print(json.load(open('data-manifest.json',encoding='utf-8')).get('kontakt_email') or '')")
+          [ -n "$KONTAKT" ] && printf '%s' "$KONTAKT" | npx --yes wrangler@3 pages secret put KONTAKT_EMAIL --project-name "$PROJECT" || true
+
+      - name: Nasad
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PROJECT: ${{ github.event.repository.name }}
+        run: npx --yes wrangler@3 pages deploy web --project-name="$PROJECT" --branch="$GITHUB_REF_NAME"

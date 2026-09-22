@@ -1,0 +1,56 @@
+# Označení platby k objednávce. Spouští ji SimteGen po jediné větě majitele
+# („zaplaceno“ přes ARGA): zapíše zaplacené období do databáze produktu,
+# řádek do deníku plateb, objednávku označí jako zaplacenou a zákazníkovi
+# pošle e-mail s koncem předplatného. Banka je jediné, co firma nevidí —
+# všechno ostatní je tenhle workflow.
+#
+# Vstup `projekt` = kterýkoli produkt (viz Faktura). Workflow Predplatne
+# (e-mail + měsíce) zůstává jako ruční cesta bez objednávky.
+
+name: Platba
+run-name: "Platba ${{ inputs.cislo }} (${{ inputs.projekt }})"
+
+on:
+  workflow_dispatch:
+    inputs:
+      projekt:
+        description: "Název repa produktu"
+        required: true
+      objednavka:
+        description: "Id objednávky v databázi produktu"
+        required: true
+      mesice:
+        description: "Kolik měsíců zaplaceno (1–24)"
+        required: true
+      cislo:
+        description: "Číslo faktury (do jména běhu — SimteGen podle něj běh najde)"
+        required: true
+      poznamka:
+        description: "Poznámka k platbě (zapíše se k předplatnému)"
+        required: true
+
+concurrency:
+  group: platba-${{ inputs.projekt }}
+  cancel-in-progress: false
+
+jobs:
+  zapis:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Zapis platbu
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          EMAIL_ODESILATEL: ${{ vars.EMAIL_ODESILATEL }}
+          PROJEKT: ${{ inputs.projekt }}
+          OBJEDNAVKA: ${{ inputs.objednavka }}
+          MESICE: ${{ inputs.mesice }}
+          POZNAMKA: ${{ inputs.poznamka }}
+        run: python3 .github/nastroje/platba.py

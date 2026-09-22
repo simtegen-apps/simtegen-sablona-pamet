@@ -1,0 +1,91 @@
+# Označení platby: majitel dostal peníze (faktura, banka) a zapíše zaplacené
+# období do databáze produktu. Tohle je jediné místo, kde se peníze potkají
+# s aplikací — aplikace sama s platbou nikdy nepracuje, jen čte plati_do.
+#
+# Spouští se ručně: Actions → Predplatne → Run workflow (jde i z telefonu
+# v aplikaci GitHub). Vstup `projekt` je název repa produktu; prázdný =
+# tento repozitář. Díky tomu se dá z repa ŠABLONY označit platba kterémukoli
+# produktu (org secrets jsou společné) a starší produkty tenhle soubor
+# nepotřebují. Účet musí existovat — zákazník se nejdřív přihlásí.
+#
+# SimteGen na workflow soubory nesahá — jeho token na ně nemá právo.
+
+name: Predplatne
+
+on:
+  workflow_dispatch:
+    inputs:
+      email:
+        description: "E-mail účtu zákazníka"
+        required: true
+      mesice:
+        description: "Kolik měsíců přidat (1–24); navazuje na konec aktuálního období"
+        required: true
+        default: "1"
+      poznamka:
+        description: "Poznámka k platbě (např. číslo faktury)"
+        required: false
+        default: ""
+      projekt:
+        description: "Název repa produktu (prázdné = tento repozitář)"
+        required: false
+        default: ""
+
+jobs:
+  oznac:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Zapis zaplacene obdobi
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PROJEKT: ${{ inputs.projekt || github.event.repository.name }}
+          EMAIL: ${{ inputs.email }}
+          MESICE: ${{ inputs.mesice }}
+          POZNAMKA: ${{ inputs.poznamka }}
+        run: |
+          set -euo pipefail
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "Org secrets CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID nejsou dostupne (Private repo?)."
+            exit 1
+          fi
+          if ! [[ "$MESICE" =~ ^[0-9]+$ ]] || [ "$MESICE" -lt 1 ] || [ "$MESICE" -gt 24 ]; then
+            echo "mesice musi byt cele cislo 1-24."
+            exit 1
+          fi
+          # Inputs come from the owner, but they still go into SQL text:
+          # lower-case the e-mail (login stores it that way) and double any
+          # apostrophe — wrangler has no bind parameters on the CLI.
+          email=$(printf '%s' "$EMAIL" | tr '[:upper:]' '[:lower:]' | sed "s/'/''/g")
+          pozn=$(printf '%s' "$POZNAMKA" | sed "s/'/''/g")
+          DB="$PROJEKT-db"
+
+          SQL="INSERT INTO predplatne (uzivatel_id, plati_do, poznamka, zmeneno)
+               SELECT u.id,
+                      CAST(strftime('%s', datetime(MAX(unixepoch(), COALESCE(p.plati_do, 0)), 'unixepoch', '+$MESICE months')) AS INTEGER),
+                      '$pozn', unixepoch()
+               FROM uzivatele u LEFT JOIN predplatne p ON p.uzivatel_id = u.id
+               WHERE u.email = '$email'
+               ON CONFLICT(uzivatel_id) DO UPDATE SET
+                 plati_do = excluded.plati_do, poznamka = excluded.poznamka, zmeneno = excluded.zmeneno;"
+          npx --yes wrangler@3 d1 execute "$DB" --remote --command "$SQL" > /dev/null
+          # The ledger row: the review counts first and second payments from it.
+          DENIK="INSERT INTO platby (uzivatel_id, mesice, poznamka)
+                 SELECT id, $MESICE, '$pozn' FROM uzivatele WHERE email = '$email';"
+          npx --yes wrangler@3 d1 execute "$DB" --remote --command "$DENIK" > /dev/null
+
+          KONTROLA="SELECT u.email, datetime(p.plati_do, 'unixepoch') AS plati_do
+                    FROM predplatne p JOIN uzivatele u ON u.id = p.uzivatel_id
+                    WHERE u.email = '$email';"
+          vysledek=$(npx --yes wrangler@3 d1 execute "$DB" --remote --json --command "$KONTROLA")
+          pocet=$(printf '%s' "$vysledek" | jq '.[0].results | length')
+          if [ "$pocet" != "1" ]; then
+            echo "Ucet $email v databazi $DB neexistuje - zakaznik se musi nejdriv prihlasit."
+            exit 1
+          fi
+          echo "Predplatne zapsano:"
+          printf '%s' "$vysledek" | jq -r '.[0].results[0] | "  \(.email) plati do \(.plati_do) UTC"'

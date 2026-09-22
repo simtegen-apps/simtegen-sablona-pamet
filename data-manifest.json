@@ -1,0 +1,102 @@
+{
+  "produkt": "",
+  "provozovatel": "SimteGen s.r.o.",
+  "kontakt_email": "",
+  "ico": "",
+  "dic": "",
+  "sidlo": "",
+  "zapis_or": "",
+  "datova_schranka": "",
+  "verze_dokumentu": "2.0",
+  "ucinnost_od": "",
+  "cena_dph": "",
+  "zkusebni_dni": 30,
+  "retence_logy": "",
+  "retence_podpora": "",
+  "retence_doklady": "10 let",
+  "odpovedna_osoba": "",
+  "zastup": "",
+  "ucetni": "",
+  "balancni_test": "",
+  "obsah_zakaznika_popis": "",
+  "subjekty_obsahu": "",
+  "obsah_zakaznika": "uklada_se",
+  "zpracovani": "worker_a_databaze_eu",
+  "externi_pozadavky": "jen_deklarovane",
+  "ukladame": [
+    {
+      "entita": "uzivatele",
+      "ucel": "účet zákazníka a přihlášení",
+      "pole": "e-mailová adresa, čas založení účtu",
+      "retence": "do smazání účtu zákazníkem"
+    },
+    {
+      "entita": "prihlasovaci_odkazy",
+      "ucel": "jednorázové přihlášení e-mailovým odkazem",
+      "pole": "otisk tokenu, e-mailová adresa, expirace",
+      "retence": "24 hodin"
+    },
+    {
+      "entita": "relace",
+      "ucel": "udržení přihlášení",
+      "pole": "otisk tokenu, odkaz na účet, expirace",
+      "retence": "30 dní od přihlášení"
+    },
+    {
+      "entita": "predplatne",
+      "ucel": "evidence zaplaceného období předplatného",
+      "pole": "odkaz na účet, datum konce předplatného, poznámka k platbě (např. číslo dokladu)",
+      "retence": "do smazání účtu zákazníkem; účetní doklady vede provozovatel mimo aplikaci po zákonnou dobu"
+    },
+    {
+      "entita": "hlaseni",
+      "ucel": "hlášení a dotazy zákazníka k aplikaci a naše odpovědi",
+      "pole": "text hlášení, stav vyřízení, odpověď, číslo záznamu v systému podpory, čas",
+      "retence": "do smazání účtu zákazníkem"
+    },
+    {
+      "entita": "platby",
+      "ucel": "evidence zaplacených období předplatného (historie plateb)",
+      "pole": "odkaz na účet, počet zaplacených měsíců, poznámka k platbě, čas zápisu",
+      "retence": "do smazání účtu zákazníkem; účetní doklady vede provozovatel mimo aplikaci po zákonnou dobu"
+    },
+    {
+      "entita": "objednavky",
+      "ucel": "objednávka předplatného a doklad o souhlasu se zahájením služby",
+      "pole": "odkaz na účet, délka a varianta předplatného, cena, fakturační údaje, zda jde o spotřebitele, souhlas se zahájením a jeho čas, stav",
+      "retence": "do smazání účtu zákazníkem; účetní doklady vede provozovatel mimo aplikaci po zákonnou dobu"
+    }
+  ],
+  "agregaty": [
+    "navstevy"
+  ],
+  "sluzby_treti_strany": [
+    {
+      "nazev": "Cloudflare",
+      "ucel": "hosting aplikace a databáze (primární instance v EU)",
+      "domena": "",
+      "dpa": "https://www.cloudflare.com/cloudflare-customer-dpa/"
+    },
+    {
+      "nazev": "Resend",
+      "ucel": "odeslání přihlašovacího odkazu na e-mail",
+      "domena": "api.resend.com",
+      "dpa": "https://resend.com/legal/dpa"
+    },
+    {
+      "nazev": "GitHub",
+      "ucel": "evidence hlášení zákazníků pro podporu (jen text hlášení, bez údajů o účtu)",
+      "domena": "api.github.com",
+      "dpa": "https://github.com/customer-terms/github-data-protection-agreement"
+    }
+  ],
+  "uloziste_v_prohlizeci": [],
+  "cookies": [
+    {
+      "nazev": "relace",
+      "ucel": "udržení přihlášení (technická, HttpOnly)",
+      "trvani": "30 dní"
+    }
+  ],
+  "poznamka": "Jediny zdroj pravdy o datech produktu. Zasady, obchodni podminky, zpracovatelska smlouva, formular pro odstoupeni, zaznam o zpracovani i postup pri incidentu se GENERUJI z tohoto souboru (python3 vykresli_zasady.py) a kontrola_manifestu.py shazuje build, kdyz se kod nebo vygenerovane soubory s manifestem rozejdou. Kazda nova tabulka = zaznam v ukladame + migrace v db/migrace/ se sloupcem uzivatel_id. Prazdne sloty (ico, sidlo, dic, zapis_or, kontakt_email, ucinnost_od, cena_dph, retence_logy, retence_podpora, odpovedna_osoba, zastup, ucetni, balancni_test) se vykresli cervene jako (doplnit ...) - s nimi se nesmi jit do produkce. obsah_zakaznika_popis a subjekty_obsahu popisuji obsah, ktery do produktu vklada zakaznik (zpracovatelska smlouva, cl. 2) - stavitel je vyplni podle produktu. agregaty = tabulky bez uzivatel_id, ktere smi obsahovat jen souhrnna cisla (den, stranka, pocet) - kontrola hlida, ze v nich neni zadny osobni sloupec."
+}

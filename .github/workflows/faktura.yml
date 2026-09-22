@@ -1,0 +1,101 @@
+# Faktura k objednávce. Spouští ji SimteGen (firma) hned, jak v repu produktu
+# přibude issue „Objednávka #N“: číslo a částku přidělí sám (jedna číselná
+# řada firmy), tady se z databáze produktu vezmou fakturační údaje, vykreslí
+# PDF s QR platbou, pošle zákazníkovi (kopie na kontaktní e-mail firmy =
+# účetní archiv) a objednávka se označí jako fakturovaná.
+#
+# Proč tady a ne v repu produktu: workflow soubory v produktech se nikdy
+# neaktualizují (token bota na ně nesmí), repo šablony dostane každý merge
+# samo. Vstup `projekt` = kterýkoli produkt, i starší. Stejný vzor jako
+# Predplatne. Ručně jde spustit také (Actions → Faktura → Run workflow).
+#
+# run-name nese číslo faktury: SimteGen podle něj běh najde (dispatch žádné
+# id nevrací) a majiteli řekne, jestli faktura odešla.
+
+name: Faktura
+run-name: "Faktura ${{ inputs.cislo }} (${{ inputs.projekt }})"
+
+on:
+  workflow_dispatch:
+    inputs:
+      projekt:
+        description: "Název repa produktu"
+        required: true
+      objednavka:
+        description: "Id objednávky v databázi produktu"
+        required: true
+      cislo:
+        description: "Číslo faktury (přiděluje SimteGen)"
+        required: true
+      castka_czk:
+        description: "Celková částka v Kč (celé číslo)"
+        required: true
+      mesice:
+        description: "Počet měsíců předplatného"
+        required: true
+      vystaveno:
+        description: "Datum vystavení YYYY-MM-DD"
+        required: true
+      splatnost:
+        description: "Datum splatnosti YYYY-MM-DD"
+        required: true
+      dodavatel:
+        description: "JSON: nazev, ico, dic, sidlo, zapis_or, email, ucet, dph_sazba"
+        required: true
+      popis:
+        description: "Text položky na faktuře"
+        required: true
+
+# One invoice at a time per product: two orders in the same minute must
+# not race on the same order row.
+concurrency:
+  group: faktura-${{ inputs.projekt }}
+  cancel-in-progress: false
+
+jobs:
+  vystav:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Knihovny a fonty
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet segno reportlab
+          if [ ! -f /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf ]; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq fonts-dejavu-core
+          fi
+
+      - name: Vystav a odesli fakturu
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          EMAIL_ODESILATEL: ${{ vars.EMAIL_ODESILATEL }}
+          PROJEKT: ${{ inputs.projekt }}
+          OBJEDNAVKA: ${{ inputs.objednavka }}
+          CISLO: ${{ inputs.cislo }}
+          CASTKA_CZK: ${{ inputs.castka_czk }}
+          MESICE: ${{ inputs.mesice }}
+          VYSTAVENO: ${{ inputs.vystaveno }}
+          SPLATNOST: ${{ inputs.splatnost }}
+          DODAVATEL: ${{ inputs.dodavatel }}
+          POPIS: ${{ inputs.popis }}
+        run: python3 .github/nastroje/faktura.py
+
+      # A spare copy for 90 days; the accounting archive is the e-mail copy.
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: faktura-${{ inputs.cislo }}
+          path: vystup/*.pdf
+          retention-days: 90
+          if-no-files-found: ignore
