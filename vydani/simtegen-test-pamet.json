@@ -1,0 +1,14 @@
+{
+ "oznaceni": "zkouska-play-1",
+ "stav": "success",
+ "balicek": "cz.simtegen.test_pamet",
+ "verze": "2026.10.09.1454",
+ "kod": 1458174,
+ "cilove_api": 36,
+ "docasny_klic": true,
+ "nahrano": false,
+ "stav_play": null,
+ "zaznam": true,
+ "run_url": "https://github.com/simtegen-apps/simtegen-sablona-pamet/actions/runs/37947611896",
+ "cas": "2026-10-09T14:55:42+00:00"
+}
