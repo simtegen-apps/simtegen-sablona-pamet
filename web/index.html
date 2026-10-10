@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="application-name" content="Produkt SimteGen">
+  <meta name="simtegen-verze" content="1.0">
+  <title>Produkt SimteGen</title>
+  <link rel="stylesheet" href="styl.css">
+  <link rel="stylesheet" href="produkt.css">
+</head>
+<body>
+  <script src="simtegen.js"></script>
+  <div class="appka">
+    <nav class="navigace" id="navigace" aria-label="Hlavní menu" hidden>
+      <a class="znacka" href="/" aria-label="SimteGen"><span class="znacka-ctverec"></span><span class="znacka-slovo">simtegen</span></a>
+      <a href="#prehled" aria-current="page">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M3 11l9-7 9 7v9H3z"/></svg>Přehled</a>
+      <a href="#ucet">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg>Účet</a>
+      <span class="mezera"></span>
+      <button type="button" class="nahlasit-chybu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg>Nahlásit chybu</button>
+      <span class="verze">V 1.0</span>
+    </nav>
+
+    <header class="hlavicka">
+      <h1>Produkt SimteGen</h1>
+      <button type="button" class="nahlasit-chybu jen-telefon" aria-label="Nahlásit chybu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg>
+      </button>
+    </header>
+
+    <main class="obsah">
+      <section id="obrazovka-nacitani" class="obrazovka aktivni" aria-live="polite">
+        <div class="kostra" style="height: 6rem"></div>
+        <div class="kostra" style="height: 2.5rem; width: 60%"></div>
+      </section>
+
+      <!-- Úvod = přihlašovací obrazovka: cizí návštěvník sem přijde z odkazu a
+           musí za 10 sekund pochopit, co produkt dělá, co stojí a že to může
+           30 dní zkoušet zdarma. Stavitel nahradí texty produktem; ceník bere
+           ze SCHVÁLENÉ ceny (window.CENIK), bez ní zůstane „ceník sdělí
+           provozovatel“. Zobrazení se počítá anonymně (/api/navsteva). -->
+      <section id="obrazovka-prihlaseni" class="obrazovka">
+        <div class="dva-sloupce">
+          <div class="sloupec">
+            <span class="stitek">01 — Co to je</span>
+            <h2 id="uvod-titulek" class="titulek-velky">Produkt SimteGen</h2>
+            <p id="uvod-podtitulek">Jedna věta, co produkt dělá a pro koho — stavitel ji napíše
+            podle kontraktu kandidáta.</p>
+            <ol id="uvod-prinosy" class="seznam">
+              <li class="radek"><span class="poradi">01</span><span class="hlavni"><strong>Co zákazník ušetří nebo získá</strong></span></li>
+              <li class="radek"><span class="poradi">02</span><span class="hlavni"><strong>Proč se to vyplatí platit i podruhé</strong></span></li>
+              <li class="radek"><span class="poradi">03</span><span class="hlavni"><strong>Co je jinak než papír nebo tabulka</strong></span></li>
+            </ol>
+            <div class="karta vykres">
+              <span class="stitek">02 — Cena</span>
+              <strong id="uvod-cena" class="titulek-cena">Ceník sdělí provozovatel.</strong>
+              <p>Prvních 30 dní zdarma, bez karty, bez závazku.</p>
+            </div>
+          </div>
+          <div class="sloupec">
+            <div class="sekce-titulek"><span>03 — Vyzkoušet zdarma nebo se přihlásit</span></div>
+            <p>Zadejte svůj e-mail — pošleme vám jednorázový přihlašovací odkaz.
+            Žádné heslo nepotřebujete.</p>
+            <div class="pole">
+              <label for="email">E-mail</label>
+              <input id="email" type="email" autocomplete="email" inputmode="email" placeholder="vas@email.cz">
+            </div>
+            <button id="poslat-odkaz" class="tlacitko plne">Poslat přihlašovací odkaz</button>
+            <div id="prihlaseni-zprava" class="zprava" aria-live="polite"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="obrazovka-aplikace" class="obrazovka">
+        <div class="mrizka">
+          <div class="sloupec s7" id="prehled">
+            <div class="sekce-titulek"><span>01 — Přehled</span></div>
+            <div class="prazdno">
+              <svg class="ikona-velka" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="4" y="4" width="16" height="16"/><path d="M4 10h16M10 4v16"/></svg>
+              <h2>Zárodek ze šablony</h2>
+              <p>Stavitel tuhle sekci nahradí skutečným nástrojem: hlavní číslo do
+              <code>.karta.vykres</code> s <code>.cislo-obri</code>, jedna hlavní akce, seznam
+              s odkazem „Vše →“. Přihlášení, účet a zásady zůstávají.</p>
+            </div>
+          </div>
+
+          <div class="sloupec s5" id="ucet">
+            <div class="sekce-titulek"><span>02 — Účet</span></div>
+            <div class="karta">
+              <span class="stitek">Přihlášeni jako</span>
+              <strong id="ucet-email"></strong>
+            </div>
+            <!-- Předplatné: tři stavy z /api/ja (zkusebni / aktivni / vyprselo).
+                 Ve stavu vyprselo stavitel produktové obrazovky zablokuje; účet,
+                 export a smazání zůstávají dostupné vždy — práva nevyprší. -->
+            <div class="karta" id="predplatne-karta" hidden>
+              <span class="stitek">Předplatné</span>
+              <p id="predplatne-text" class="zprava"></p>
+            </div>
+            <!-- Objednávka předplatného (obchodní podmínky čl. 3 a 4): rozsah, délka
+                 a cena jsou vidět PŘED tlačítkem, tlačítko nese zákonný nápis,
+                 spotřebitel dává souhlas se zahájením před 14denní lhůtou zvlášť.
+                 Ceník doplní stavitel ze schválené ceny (cenotvorba); bez ní
+                 zůstává text „ceník sdělí provozovatel“. -->
+            <div class="karta vykres" id="objednavka-karta" hidden>
+              <span class="stitek">03 — Objednat předplatné</span>
+              <p id="objednavka-cenik">Ceník sdělí provozovatel před objednáním.</p>
+              <div class="pole">
+                <label for="objednavka-mesice">Délka předplatného</label>
+                <select id="objednavka-mesice">
+                  <option value="1">1 měsíc</option>
+                  <option value="3">3 měsíce</option>
+                  <option value="12">12 měsíců</option>
+                </select>
+              </div>
+              <div class="pole">
+                <label for="objednavka-fakturace">Fakturační údaje</label>
+                <textarea id="objednavka-fakturace" rows="3" maxlength="600"
+                          placeholder="Název / jméno, adresa, IČO (máte-li)"></textarea>
+              </div>
+              <label class="volba"><input type="checkbox" id="objednavka-spotrebitel"> Objednávám jako spotřebitel
+                (mimo podnikání)</label>
+              <label class="volba" id="objednavka-souhlas-radek" hidden><input type="checkbox" id="objednavka-souhlas">
+                Výslovně souhlasím, aby placená služba začala před uplynutím 14denní lhůty pro
+                odstoupení, a beru na vědomí, že tím právo na odstoupení ztrácím
+                (§ 1837 písm. l) občanského zákoníku).</label>
+              <p class="zprava">Celková cena: <strong id="objednavka-celkem">podle ceníku</strong></p>
+              <button id="objednavka-poslat" class="tlacitko plne">Objednávka zavazující k platbě</button>
+              <div id="objednavka-zprava" class="zprava" aria-live="polite"></div>
+            </div>
+            <!-- Schránka: zákazník nám píše z aplikace, odpověď vidí tady. Není
+                 vázaná na předplatné — hlásit problém je právo, ne funkce. Sem
+                 vede tlačítko Nahlásit chybu z každé obrazovky. -->
+            <div class="karta" id="schranka">
+              <span class="stitek">04 — Napište nám</span>
+              <div class="pole">
+                <label for="hlaseni-text">Co nefunguje nebo co vám chybí</label>
+                <textarea id="hlaseni-text" rows="3" maxlength="2000"
+                          placeholder="Popište, co jste dělali a co se stalo…"></textarea>
+              </div>
+              <button id="hlaseni-poslat" class="tlacitko vedlejsi">Odeslat</button>
+              <div id="hlaseni-zprava" class="zprava" aria-live="polite"></div>
+              <ul id="hlaseni-seznam" class="seznam"></ul>
+            </div>
+            <div class="radka">
+              <button id="stahnout-data" class="tlacitko vedlejsi">Stáhnout moje data</button>
+              <button id="odhlasit" class="tlacitko vedlejsi">Odhlásit se</button>
+            </div>
+            <button id="smazat-ucet" class="tlacitko varovne">Smazat účet a všechna data</button>
+            <div id="aplikace-zprava" class="zprava" aria-live="polite"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="paticka">
+      <a href="zasady.html">Zásady zpracování údajů</a>
+      <a href="podminky.html">Obchodní podmínky</a>
+      <a href="zpracovatelska-smlouva.html">Zpracovatelská smlouva</a>
+      <a href="odstoupeni-formular.html">Odstoupení od smlouvy</a>
+      <button type="button" class="nahlasit-chybu odkaz">Nahlásit chybu</button>
+    </footer>
+  </div>
+
+  <script>
+    "use strict";
+    const $ = (id) => document.getElementById(id);
+    function ukaz(id) {
+      document.querySelectorAll(".obrazovka").forEach((o) =>
+        o.classList.toggle("aktivni", o.id === id));
+      // The menu belongs to the signed-in app; the landing screen has its own
+      // single action. "Nahlásit chybu" stays everywhere — someone who cannot
+      // log in is exactly who needs it (simtegen.js sends it without login).
+      const vAplikaci = id === "obrazovka-aplikace";
+      $("navigace").hidden = !vAplikaci;
+    }
+
+    async function api(cesta, metoda, telo) {
+      const odpoved = await fetch(cesta, {
+        method: metoda,
+        headers: telo ? { "Content-Type": "application/json" } : undefined,
+        body: telo ? JSON.stringify(telo) : undefined,
+      });
+      return { ok: odpoved.ok, data: await odpoved.json().catch(() => ({})) };
+    }
+
+    function datum(unix) {
+      return new Date(unix * 1000).toLocaleDateString("cs-CZ");
+    }
+
+    function ukazPredplatne(p) {
+      const karta = $("predplatne-karta");
+      const text = $("predplatne-text");
+      if (!p) { karta.hidden = true; $("objednavka-karta").hidden = true; return; }
+      karta.hidden = false;
+      // Ordering makes sense once the trial is running out or over.
+      $("objednavka-karta").hidden = !(p.stav === "vyprselo" || (p.stav === "zkusebni" && p.dni_zbyva <= 7));
+      prepocitejObjednavku();
+      text.className = "zprava";
+      if (p.stav === "aktivni") {
+        text.textContent = "Předplatné je aktivní do " + datum(p.plati_do) + ".";
+      } else if (p.stav === "zkusebni") {
+        text.textContent = "Zkušební období: zbývá " + p.dni_zbyva + " dní (do "
+          + datum(p.plati_do) + ").";
+      } else {
+        text.className = "zprava chyba";
+        text.textContent = "Předplatné vypršelo. Pro obnovení nám napište — "
+          + "kontaktní e-mail najdete v zásadách zpracování údajů.";
+      }
+    }
+
+    let navstevaZapocitana = false;
+    function zapoctiNavstevu() {
+      // Anonymous tally of landing views — only for visitors without a
+      // session, once per page load.
+      if (navstevaZapocitana) return;
+      navstevaZapocitana = true;
+      api("/api/navsteva", "POST", { stranka: "uvod" }).catch(() => {});
+      if (CENIK) $("uvod-cena").textContent = `${CENIK.mesic} ${CENIK.mena} měsíčně.`;
+    }
+
+    async function obnov() {
+      try {
+        const { data } = await api("/api/ja", "GET");
+        if (data.prihlasen) {
+          $("ucet-email").textContent = data.email;
+          ukazPredplatne(data.predplatne);
+          ukaz("obrazovka-aplikace");
+          nactiHlaseni();
+        } else {
+          ukaz("obrazovka-prihlaseni");
+          zapoctiNavstevu();
+        }
+      } catch {
+        ukaz("obrazovka-prihlaseni");
+      }
+    }
+
+    $("poslat-odkaz").addEventListener("click", async () => {
+      const zprava = $("prihlaseni-zprava");
+      zprava.className = "zprava";
+      zprava.textContent = "Odesílám…";
+      const { ok, data } = await api("/api/prihlaseni", "POST", { email: $("email").value });
+      if (!ok) {
+        zprava.className = "zprava chyba";
+        zprava.textContent = data.chyba || "Něco se nepovedlo. Zkuste to prosím znovu.";
+        return;
+      }
+      if (data.odkaz) {
+        // Development deployments hand the link back instead of e-mailing it.
+        zprava.innerHTML = "";
+        const a = document.createElement("a");
+        a.href = data.odkaz;
+        a.textContent = "Vývojový režim — přihlásit tímto odkazem";
+        zprava.appendChild(a);
+        return;
+      }
+      zprava.textContent = "Hotovo — přihlašovací odkaz najdete v e-mailu.";
+    });
+
+    $("odhlasit").addEventListener("click", async () => {
+      await api("/api/odhlaseni", "POST");
+      obnov();
+    });
+
+    $("stahnout-data").addEventListener("click", () => {
+      location.href = "/api/ucet/export";
+    });
+
+    // Price per month for the total line; the builder sets it from the
+    // approved price (window.CENIK = { mesic: 690, mena: "Kč" }). Null = no
+    // approved price yet, the total stays "podle ceníku".
+    const CENIK = window.CENIK || null;
+    function prepocitejObjednavku() {
+      const mesice = Number($("objednavka-mesice").value);
+      $("objednavka-celkem").textContent = CENIK
+        ? `${mesice * CENIK.mesic} ${CENIK.mena} za ${mesice} měs.`
+        : "podle ceníku";
+    }
+    $("objednavka-mesice").addEventListener("change", prepocitejObjednavku);
+    $("objednavka-spotrebitel").addEventListener("change", () => {
+      $("objednavka-souhlas-radek").hidden = !$("objednavka-spotrebitel").checked;
+    });
+    $("objednavka-poslat").addEventListener("click", async () => {
+      const zprava = $("objednavka-zprava");
+      zprava.className = "zprava";
+      zprava.textContent = "Odesílám…";
+      const mesice = Number($("objednavka-mesice").value);
+      const { ok, data } = await api("/api/objednavka", "POST", {
+        mesice,
+        cena_czk: CENIK ? mesice * CENIK.mesic : null,
+        fakturace: $("objednavka-fakturace").value,
+        spotrebitel: $("objednavka-spotrebitel").checked,
+        souhlas_zahajeni: $("objednavka-spotrebitel").checked && $("objednavka-souhlas").checked,
+      });
+      if (!ok) {
+        zprava.className = "zprava chyba";
+        zprava.textContent = data.chyba || "Objednávku se nepodařilo odeslat.";
+        return;
+      }
+      zprava.textContent = data.emaily
+        ? "Děkujeme, objednávku máme. Potvrzení a fakturu pošleme e-mailem."
+        : "Děkujeme, objednávku máme. Fakturu pošleme e-mailem.";
+    });
+
+    const STAVY_HLASENI = { nove: "přijato", vyrizuje_se: "řešíme", vyrizeno: "vyřízeno", odlozeno: "odloženo" };
+
+    async function nactiHlaseni() {
+      const { ok, data } = await api("/api/hlaseni", "GET");
+      const seznam = $("hlaseni-seznam");
+      seznam.innerHTML = "";
+      if (!ok) return;
+      for (const h of data.hlaseni || []) {
+        const li = document.createElement("li");
+        li.className = "radek";
+        const kdy = new Date(h.vytvoreno * 1000).toLocaleDateString("cs-CZ");
+        li.textContent = `${kdy} · ${STAVY_HLASENI[h.stav] || h.stav}: ${h.text}`;
+        if (h.odpoved) {
+          const odp = document.createElement("div");
+          odp.className = "hlaska";
+          odp.textContent = "Odpověď: " + h.odpoved;
+          li.appendChild(odp);
+        }
+        seznam.appendChild(li);
+      }
+    }
+
+    $("hlaseni-poslat").addEventListener("click", async () => {
+      const zprava = $("hlaseni-zprava");
+      zprava.className = "zprava";
+      zprava.textContent = "Odesílám…";
+      const { ok, data } = await api("/api/hlaseni", "POST", { text: $("hlaseni-text").value });
+      if (!ok) {
+        zprava.className = "zprava chyba";
+        zprava.textContent = data.chyba || "Odeslání se nepovedlo.";
+        return;
+      }
+      $("hlaseni-text").value = "";
+      zprava.textContent = "Děkujeme, máme to. Odpověď uvidíte zde.";
+      nactiHlaseni();
+    });
+
+    $("smazat-ucet").addEventListener("click", async () => {
+      if (!confirm("Opravdu smazat účet a všechna data? Krok je nevratný.")) return;
+      const { ok, data } = await api("/api/ucet/smazat", "POST");
+      const zprava = $("aplikace-zprava");
+      if (!ok) {
+        zprava.className = "zprava chyba";
+        zprava.textContent = data.chyba || "Smazání se nepovedlo.";
+        return;
+      }
+      obnov();
+    });
+
+    obnov();
+  </script>
+</body>
+</html>

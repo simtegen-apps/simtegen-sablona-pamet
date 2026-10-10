@@ -1,0 +1,257 @@
+# Vydání Android aplikace produktu do Google Play — JEN na interní kanál.
+# Povýšení do produkce je klepnutí majitele v Play Console, nikdy tenhle
+# workflow.
+#
+# Z čeho: z NASAZENÉHO webu produktu (manifest.webmanifest, ikony, balíček
+# v related_applications) — všechno to vyrábí vykresli_aplikaci.py v produktu.
+# Aplikace je Trusted Web Activity: Bubblewrap z webu udělá AAB bez řádku
+# nativního kódu.
+#
+# Proč tady a ne v repu produktu: workflow v produktech se nikdy neaktualizují
+# (token bota na ně nesmí), repo šablony dostane každý merge samo. Vstup
+# `projekt` = kterýkoli produkt. Stejný vzor jako Faktura a Platba.
+#
+# Tajemství (org secrets, zakládá majitel, nikdy SimteGen):
+#   PLAY_UPLOAD_KEYSTORE           upload klíč jako base64 (alias "upload")
+#   PLAY_UPLOAD_KEYSTORE_PASSWORD  heslo úložiště i klíče
+#   PLAY_SERVICE_ACCOUNT_JSON      servisní účet s rolí správce vydání
+# Bez upload klíče se aplikace podepíše dočasným klíčem a jen se uloží jako
+# artefakt (ověření, že se sestaví). Bez servisního účtu se nenahrává.
+# Úplně první verzi nové aplikace nahrává člověk ručně v Play Console —
+# Google API neznámý balíček odmítne; artefakt tohoto běhu je přesně ten soubor.
+
+name: Vydani
+run-name: "Vydani ${{ inputs.projekt }} ${{ inputs.oznaceni }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      projekt:
+        description: "Název repa produktu"
+        required: true
+      domena:
+        description: "Vlastní doména produktu (prázdné = <projekt>.pages.dev)"
+        required: false
+        default: ""
+      poznamka:
+        description: "Co je nového (poznámka k vydání, česky)"
+        required: false
+        default: ""
+      oznaceni:
+        description: "Značka běhu — SimteGen podle ní běh najde"
+        required: false
+        default: ""
+      vetev:
+        description: "Větev repa produktu pro záznam v obchodě (prázdné = výchozí)"
+        required: false
+        default: ""
+
+concurrency:
+  group: vydani-${{ inputs.projekt }}
+  cancel-in-progress: false
+
+jobs:
+  vydej:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    # contents: write only for the result file in the template's metriky branch.
+    permissions:
+      contents: write
+    env:
+      PLAY_UPLOAD_KEYSTORE: ${{ secrets.PLAY_UPLOAD_KEYSTORE }}
+      PLAY_UPLOAD_KEYSTORE_PASSWORD: ${{ secrets.PLAY_UPLOAD_KEYSTORE_PASSWORD }}
+      PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # Bubblewrap checks the JDK major version; 17 is what it supports.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Priprava z nasazeneho webu
+        id: priprava
+        env:
+          PROJEKT: ${{ inputs.projekt }}
+          DOMENA: ${{ inputs.domena }}
+        run: python3 .github/nastroje/vydani.py priprav
+
+      - name: Podpisovy klic
+        id: klic
+        run: |
+          set -euo pipefail
+          if [ -n "$PLAY_UPLOAD_KEYSTORE" ] && [ -n "$PLAY_UPLOAD_KEYSTORE_PASSWORD" ]; then
+            printf '%s' "$PLAY_UPLOAD_KEYSTORE" | base64 -d > vydani/upload.keystore
+            heslo="$PLAY_UPLOAD_KEYSTORE_PASSWORD"
+            echo "docasny=0" >> "$GITHUB_OUTPUT"
+          else
+            # No upload key yet: prove the build with a throwaway key that dies
+            # with the runner. Such a bundle can never go to Play, by design.
+            heslo=$(openssl rand -hex 16)
+            echo "::add-mask::$heslo"
+            keytool -genkeypair -keystore vydani/upload.keystore -alias upload -keyalg RSA \
+              -keysize 2048 -validity 10000 -storepass "$heslo" -keypass "$heslo" \
+              -dname "CN=SimteGen docasny klic" > /dev/null
+            echo "docasny=1" >> "$GITHUB_OUTPUT"
+          fi
+          {
+            echo "BUBBLEWRAP_KEYSTORE_PASSWORD=$heslo"
+            echo "BUBBLEWRAP_KEY_PASSWORD=$heslo"
+          } >> "$GITHUB_ENV"
+          otisk=$(keytool -list -v -keystore vydani/upload.keystore -alias upload -storepass "$heslo" \
+            | sed -n 's/^[[:space:]]*SHA256:[[:space:]]*//p' | head -n 1)
+          echo "otisk=$otisk" >> "$GITHUB_OUTPUT"
+
+      - name: Sestaveni (Bubblewrap)
+        run: |
+          set -euo pipefail
+          npm install --global --silent @bubblewrap/cli@1
+          # Bubblewrap insists on the old SDK layout with a `tools` folder,
+          # which current runner images no longer have ("The provided
+          # androidSdk isn't correct"). So it gets its own SDK folder: links to
+          # the runner's parts, `tools` pointing at cmdline-tools/latest,
+          # nothing of the runner's touched. Gradle then refuses two different
+          # SDK paths in the environment, so the runner's ANDROID_SDK_ROOT goes
+          # and ANDROID_HOME names the new folder.
+          sdk="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          moje_sdk="$HOME/android-sdk"
+          mkdir -p "$moje_sdk"
+          for cast in "$sdk"/*; do ln -sfn "$cast" "$moje_sdk/$(basename "$cast")"; done
+          ln -sfn "$sdk/cmdline-tools/latest" "$moje_sdk/tools"
+          unset ANDROID_SDK_ROOT
+          export ANDROID_HOME="$moje_sdk"
+          echo "Android SDK: $moje_sdk (z $sdk)"
+          mkdir -p ~/.bubblewrap
+          printf '{"jdkPath":"%s","androidSdkPath":"%s"}' "$JAVA_HOME" "$moje_sdk" > ~/.bubblewrap/config.json
+          cd vydani
+          # Passwords come from the environment. `update` writes the project and
+          # its checksum, so `build` has nothing to ask; stdin still answers yes
+          # to any confirmation a newer Bubblewrap might add. Fed by process
+          # substitution, not a pipe: under pipefail a pipe would fail the step
+          # with yes's SIGPIPE after a perfectly good build.
+          bubblewrap update --skipVersionUpgrade --manifest=./twa-manifest.json < <(yes)
+          bubblewrap build --skipPwaValidation --manifest=./twa-manifest.json < <(yes)
+          ls -l app-release-bundle.aab
+
+      # The store listing comes from the product repo (public, readable
+      # without a token): texts from play/zaznam.json, generated from its
+      # manifest; phone screenshots and the feature graphic rendered from the
+      # product by the template's own vizualni_kontrola.py. A product built
+      # before the listing existed just skips it.
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/${{ inputs.projekt }}
+          ref: ${{ inputs.vetev }}
+          path: produkt
+
+      - name: Zaznam v obchode (texty, snimky, grafika)
+        id: obchod
+        run: |
+          set -euo pipefail
+          if [ ! -f produkt/play/zaznam.json ]; then
+            echo "Produkt nemá play/zaznam.json (modul aplikace z doby před záznamem) — záznam se přeskočí."
+            echo "zaznam=0" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          python3 vizualni_kontrola.py --koren produkt --obchod vydani/obchod
+          cp produkt/play/zaznam.json produkt/play/BEZPECNOST_DAT.md vydani/obchod/
+          echo "zaznam=1" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aplikace-${{ inputs.projekt }}-${{ steps.priprava.outputs.kod }}
+          path: |
+            vydani/app-release-bundle.aab
+            vydani/app-release-signed.apk
+            vydani/twa-manifest.json
+            vydani/obchod/
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Nahrani na interni kanal
+        id: nahrani
+        if: env.PLAY_SERVICE_ACCOUNT_JSON != '' && steps.klic.outputs.docasny == '0'
+        env:
+          POZNAMKA: ${{ inputs.poznamka }}
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet google-auth requests
+          python3 .github/nastroje/vydani.py nahraj vydani/app-release-bundle.aab
+
+      - name: Shrnuti
+        if: always()
+        env:
+          DOCASNY: ${{ steps.klic.outputs.docasny }}
+          ZAZNAM: ${{ steps.obchod.outputs.zaznam }}
+          NAHRANO: ${{ steps.nahrani.outcome }}
+          STAV: ${{ steps.nahrani.outputs.stav }}
+        run: |
+          {
+            echo "### Vydání ${{ inputs.projekt }}"
+            echo "- Balíček: \`${{ steps.priprava.outputs.balicek }}\`, verze ${{ steps.priprava.outputs.verze }} (kód ${{ steps.priprava.outputs.kod }})"
+            if [ "$ZAZNAM" = "1" ]; then
+              echo "- Záznam v obchodě: texty, snímky a grafika jsou v artefaktu (\`obchod/\`); co vyplnit ručně v Play Console je v \`obchod/BEZPECNOST_DAT.md\`."
+            else
+              echo "- Záznam v obchodě: produkt ho ještě nemá (vznikne s jeho příští stavbou)."
+            fi
+            if [ "$DOCASNY" = "1" ]; then
+              echo "- Podepsáno **dočasným** klíčem — jen ověření sestavení, do Google Play to nejde. Chybí org secrets PLAY_UPLOAD_KEYSTORE a PLAY_UPLOAD_KEYSTORE_PASSWORD."
+            else
+              echo "- SHA-256 upload klíče: \`${{ steps.klic.outputs.otisk }}\`"
+            fi
+            if [ "$NAHRANO" = "success" ]; then
+              echo "- Google Play: nahráno na interní kanál (${STAV:-completed}). Povýšení do produkce je na tobě v Play Console."
+            elif [ "$NAHRANO" = "skipped" ]; then
+              echo "- Google Play: nenahráno (chybí servisní účet nebo upload klíč). Soubor .aab je v artefaktu."
+            else
+              echo "- Google Play: nahrání selhalo — důvod je v logu kroku Nahrani."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # SimteGen reads the outcome back from the template repo (branch
+      # metriky, vydani/<projekt>.json) — the same channel as the metrics.
+      # Always, also after a failure: otherwise SimteGen waits for a release
+      # that never comes.
+      - name: Uloz vysledek pro SimteGen
+        if: always()
+        env:
+          PROJEKT: ${{ inputs.projekt }}
+          OZNACENI: ${{ inputs.oznaceni }}
+          STAV: ${{ job.status }}
+          DOCASNY: ${{ steps.klic.outputs.docasny }}
+          ZAZNAM: ${{ steps.obchod.outputs.zaznam }}
+          NAHRANO: ${{ steps.nahrani.outcome }}
+          STAV_PLAY: ${{ steps.nahrani.outputs.stav }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          GH_TOKEN: ${{ github.token }}
+          REPO_FULL: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          mkdir -p vydani
+          python3 .github/nastroje/vydani.py vysledek
+          git config --global user.name "SimteGen vydani"
+          git config --global user.email "simtegen@users.noreply.github.com"
+          git clone -q --depth 1 --branch metriky "https://x-access-token:${GH_TOKEN}@github.com/${REPO_FULL}.git" vetev 2>/dev/null || {
+            mkdir vetev && git -C vetev init -q -b metriky
+            git -C vetev remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${REPO_FULL}.git"
+          }
+          mkdir -p vetev/vydani
+          cp vydani/vysledek.json "vetev/vydani/${PROJEKT}.json"
+          git -C vetev add -A
+          git -C vetev commit -q -m "vydani ${PROJEKT} ${OZNACENI}" || { echo "beze zmeny"; exit 0; }
+          # Metriky and Play write the same branch; on a race, rebase and retry.
+          for pokus in 1 2 3; do
+            git -C vetev push -q origin metriky && exit 0
+            git -C vetev pull -q --rebase origin metriky || true
+          done
+          echo "Výsledek se do větve metriky nepodařilo zapsat."
+          exit 1

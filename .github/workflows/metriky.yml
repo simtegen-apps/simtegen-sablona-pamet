@@ -1,0 +1,173 @@
+# Metriky produktů pro měsíční revizi — čísla, žádné osobní údaje.
+#
+# SimteGen do databází produktů nevidí (org secrets žijí jen v Actions), tak
+# čísla spočítá tenhle workflow a odloží je do větve `metriky` REPA ŠABLONY
+# (soubor produkty/<repo>.json). Odtud je SimteGen čte jedním čtením
+# obsahu. Větev main šablony to nemění (chrání ji ruleset), Sablony
+# workflow ji nepřepisuje (force-push jde jen na main).
+#
+# Běží PLÁNOVANĚ jen v repu šablony (simtegen-sablona-pamet), a to pro
+# každý produkt, který má na Cloudflare databázi `<repo>-db` — seznam si
+# zjistí sám z `wrangler d1 list`, nic se neudržuje ručně. Org variable
+# SIMTEGEN_PRODUKTY (názvy rep oddělené čárkou) je jen volitelný přepis.
+# V produktových repech je soubor zděděný ze šablony a plánovaný běh se
+# v nich přeskočí. Ručně: Run workflow s `projekt`.
+#
+# Co se počítá (vše COUNT/SUM nad D1, nikdy řádky):
+#   účty celkem / nové 30 d, aktivní 7 d a 30 d (relace), zkušební,
+#   předplatné aktivní / vypršelé, platby 30 d, platící účty, účty s druhou
+#   platbou, hlášení 30 d, a pro každou tabulku produktu se sloupcem
+#   uzivatel_id počet řádků (+ nové za 30 d, má-li sloupec vytvoreno).
+
+name: Metriky
+
+on:
+  schedule:
+    - cron: "17 4 * * 1"   # pondělí 04:17 UTC
+  workflow_dispatch:
+    inputs:
+      projekt:
+        description: "Název repa produktu (prázdné = všechny produkty s databází na Cloudflare)"
+        required: false
+        default: ""
+
+jobs:
+  spocitej:
+    if: github.event_name == 'workflow_dispatch' || github.event.repository.name == 'simtegen-sablona-pamet'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Spocitej metriky
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PROJEKT_VSTUP: ${{ inputs.projekt }}
+          PRODUKTY: ${{ vars.SIMTEGEN_PRODUKTY }}
+          REPO_NAME: ${{ github.event.repository.name }}
+        run: |
+          set -euo pipefail
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "Org secrets CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID nejsou dostupne."
+            exit 1
+          fi
+          if [ -n "$PROJEKT_VSTUP" ]; then
+            seznam="$PROJEKT_VSTUP"
+          elif [ "$REPO_NAME" != "simtegen-sablona-pamet" ]; then
+            seznam="$REPO_NAME"
+          elif [ -n "${PRODUKTY:-}" ]; then
+            seznam="$PRODUKTY"
+          else
+            # Every product born from the template has a D1 database named
+            # <repo>-db (deploy.yml creates it). The preview databases end
+            # with -db-nahled and are skipped. No list to maintain.
+            seznam=$(npx --yes wrangler@3 d1 list --json               | jq -r '[.[] | .name | select(endswith("-db")) | sub("-db$"; "")] | join(",")')
+          fi
+          if [ -z "$seznam" ]; then
+            echo "Zadny produkt: na Cloudflare neni zadna databaze <repo>-db."
+            exit 1
+          fi
+          mkdir -p vystup
+          q() {  # q <db> <sql> -> první hodnota prvního řádku (nebo 0)
+            npx --yes wrangler@3 d1 execute "$1" --remote --json --command "$2" \
+              | jq -r '.[0].results[0] | to_entries[0].value // 0'
+          }
+          DEN=$(date -u +%F)
+          T30=$(( $(date -u +%s) - 30*86400 ))
+          T7=$(( $(date -u +%s) - 7*86400 ))
+          IFS=',' read -ra repa <<< "$seznam"
+          for repo in "${repa[@]}"; do
+            repo=$(printf '%s' "$repo" | tr -d '[:space:]')
+            [ -n "$repo" ] || continue
+            DB="$repo-db"
+            echo "== $repo"
+            ucty=$(q "$DB" "SELECT COUNT(*) FROM uzivatele")
+            ucty_nove=$(q "$DB" "SELECT COUNT(*) FROM uzivatele WHERE vytvoreno > $T30")
+            aktivni30=$(q "$DB" "SELECT COUNT(DISTINCT uzivatel_id) FROM relace WHERE vytvoreno > $T30")
+            aktivni7=$(q "$DB" "SELECT COUNT(DISTINCT uzivatel_id) FROM relace WHERE vytvoreno > $T7")
+            ma_predplatne=$(q "$DB" "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='predplatne'")
+            if [ "$ma_predplatne" = "1" ]; then
+              pred_aktivni=$(q "$DB" "SELECT COUNT(*) FROM predplatne WHERE plati_do > unixepoch()")
+              pred_vyprsele=$(q "$DB" "SELECT COUNT(*) FROM predplatne WHERE plati_do <= unixepoch()")
+              zkusebni=$(q "$DB" "SELECT COUNT(*) FROM uzivatele u WHERE u.vytvoreno > $T30 AND NOT EXISTS (SELECT 1 FROM predplatne p WHERE p.uzivatel_id = u.id)")
+            else
+              pred_aktivni=0; pred_vyprsele=0; zkusebni=0
+            fi
+            ma_platby=$(q "$DB" "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='platby'")
+            if [ "$ma_platby" = "1" ]; then
+              platby30=$(q "$DB" "SELECT COUNT(*) FROM platby WHERE zapsano > $T30")
+              platici=$(q "$DB" "SELECT COUNT(DISTINCT uzivatel_id) FROM platby")
+              druha=$(q "$DB" "SELECT COUNT(*) FROM (SELECT uzivatel_id FROM platby GROUP BY uzivatel_id HAVING COUNT(*) >= 2)")
+            else
+              platby30=0; platici=0; druha=0
+            fi
+            ma_navstevy=$(q "$DB" "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='navstevy'")
+            if [ "$ma_navstevy" = "1" ]; then
+              zobrazeni30=$(q "$DB" "SELECT COALESCE(SUM(pocet), 0) FROM navstevy WHERE stranka = 'uvod' AND den >= date('now', '-30 days')")
+            else
+              zobrazeni30=0
+            fi
+            ma_hlaseni=$(q "$DB" "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='hlaseni'")
+            if [ "$ma_hlaseni" = "1" ]; then
+              hlaseni30=$(q "$DB" "SELECT COUNT(*) FROM hlaseni WHERE vytvoreno > $T30")
+            else
+              hlaseni30=0
+            fi
+            # Product tables: anything with uzivatel_id that the template did not ship.
+            tabulky=$(npx --yes wrangler@3 d1 execute "$DB" --remote --json --command \
+              "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf%' AND name NOT IN ('d1_migrations','uzivatele','prihlasovaci_odkazy','relace','predplatne','platby','hlaseni','objednavky','navstevy')" \
+              | jq -r '.[0].results[].name')
+            pouziti='{}'
+            for t in $tabulky; do
+              ma_uid=$(q "$DB" "SELECT COUNT(*) FROM pragma_table_info('$t') WHERE name='uzivatel_id'")
+              [ "$ma_uid" = "1" ] || continue
+              celkem=$(q "$DB" "SELECT COUNT(*) FROM \"$t\"")
+              ma_vytv=$(q "$DB" "SELECT COUNT(*) FROM pragma_table_info('$t') WHERE name='vytvoreno'")
+              if [ "$ma_vytv" = "1" ]; then
+                nove=$(q "$DB" "SELECT COUNT(*) FROM \"$t\" WHERE vytvoreno > $T30")
+              else
+                nove=null
+              fi
+              pouziti=$(printf '%s' "$pouziti" | jq --arg t "$t" --argjson c "$celkem" --argjson n "$nove" '. + {($t): {celkem: $c, nove_30d: $n}}')
+            done
+            jq -n --arg repo "$repo" --arg den "$DEN" \
+              --argjson ucty "$ucty" --argjson ucty_nove "$ucty_nove" \
+              --argjson aktivni7 "$aktivni7" --argjson aktivni30 "$aktivni30" \
+              --argjson zkusebni "$zkusebni" --argjson pa "$pred_aktivni" --argjson pv "$pred_vyprsele" \
+              --argjson platby30 "$platby30" --argjson platici "$platici" --argjson druha "$druha" \
+              --argjson hlaseni30 "$hlaseni30" --argjson pouziti "$pouziti" --argjson zobrazeni30 "$zobrazeni30" \
+              '{repo: $repo, den: $den, zobrazeni_30d: $zobrazeni30, ucty_celkem: $ucty, ucty_nove_30d: $ucty_nove,
+                aktivni_7d: $aktivni7, aktivni_30d: $aktivni30, zkusebni: $zkusebni,
+                predplatne_aktivni: $pa, predplatne_vyprsele: $pv,
+                platby_30d: $platby30, platici_ucty: $platici, ucty_s_druhou_platbou: $druha,
+                hlaseni_30d: $hlaseni30, pouziti: $pouziti}' > "vystup/$repo.json"
+            cat "vystup/$repo.json"
+          done
+
+      - name: Uloz do vetve metriky
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO_FULL: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          git config --global user.name "SimteGen metriky"
+          git config --global user.email "simtegen@users.noreply.github.com"
+          git clone -q --depth 1 --branch metriky "https://x-access-token:${GH_TOKEN}@github.com/${REPO_FULL}.git" vetev 2>/dev/null || {
+            mkdir vetev && git -C vetev init -q -b metriky
+            git -C vetev remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${REPO_FULL}.git"
+          }
+          mkdir -p vetev/produkty vetev/historie
+          for f in vystup/*.json; do
+            n=$(basename "$f" .json)
+            cp "$f" "vetev/produkty/$n.json"
+            mkdir -p "vetev/historie/$n"
+            cp "$f" "vetev/historie/$n/$(date -u +%F).json"
+          done
+          git -C vetev add -A
+          git -C vetev commit -q -m "metriky $(date -u +%F)" || { echo "beze zmeny"; exit 0; }
+          git -C vetev push -q origin metriky
+          echo "Metriky ulozeny do vetve metriky."

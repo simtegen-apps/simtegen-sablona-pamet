@@ -1,0 +1,12 @@
+# simtegen-hlavicky — ze šablony, NEUPRAVOVAT V PRODUKTU (stavba ho obnoví).
+#
+# Content-Security-Policy je druhá zeď za kontrolou sítě v CI: i kdyby se
+# do stránky dostal cizí skript, prohlížeč nepošle data jinam než na vlastní
+# /api/ (connect-src 'self'), nenačte cizí skript ani písmo a stránku nikdo
+# nevloží do rámu. Inline skripty a styly zůstávají povolené — šablona je
+# používá a vkládání HTML z dat hlídá bezpečnostní kontrola.
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; manifest-src 'self'; worker-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(self), microphone=(), geolocation=(self), payment=()
