@@ -1,12 +1,12 @@
 {
   "repo": "simtegen-appka-pro-mechaniky-a-servisy-na-uskladn",
-  "den": "2026-10-05",
+  "den": "2026-10-12",
   "zobrazeni_30d": 0,
   "ucty_celkem": 3,
-  "ucty_nove_30d": 3,
-  "aktivni_7d": 1,
-  "aktivni_30d": 3,
-  "zkusebni": 3,
+  "ucty_nove_30d": 0,
+  "aktivni_7d": 0,
+  "aktivni_30d": 2,
+  "zkusebni": 0,
   "predplatne_aktivni": 0,
   "predplatne_vyprsele": 0,
   "platby_30d": 0,
@@ -16,19 +16,19 @@
   "pouziti": {
     "nastaveni_servisu": {
       "celkem": 3,
-      "nove_30d": 3
+      "nove_30d": 0
     },
     "zakaznici": {
       "celkem": 17,
-      "nove_30d": 17
+      "nove_30d": 15
     },
     "sady": {
       "celkem": 29,
-      "nove_30d": 29
+      "nove_30d": 27
     },
     "pohyby": {
       "celkem": 29,
-      "nove_30d": 29
+      "nove_30d": 27
     },
     "clenove": {
       "celkem": 0,
