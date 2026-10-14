@@ -1,14 +1,14 @@
 {
- "oznaceni": "nasazeni-20261014185827-f811",
+ "oznaceni": "nasazeni-20261014211217-e44f",
  "stav": "failure",
  "balicek": "cz.simtegen.mobilni_aplikace_pro_truhlare_na_navrh_k",
- "verze": "2026.10.14.1658",
- "kod": 1465498,
+ "verze": "2026.10.14.1912",
+ "kod": 1465632,
  "cilove_api": 36,
  "docasny_klic": false,
  "nahrano": false,
  "stav_play": null,
- "zaznam": false,
- "run_url": "https://github.com/simtegen-apps/simtegen-sablona-pamet/actions/runs/38602645758",
- "cas": "2026-10-14T17:00:23+00:00"
+ "zaznam": true,
+ "run_url": "https://github.com/simtegen-apps/simtegen-sablona-pamet/actions/runs/38621681217",
+ "cas": "2026-10-14T19:14:16+00:00"
 }
