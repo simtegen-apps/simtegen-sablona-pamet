@@ -1,7 +1,17 @@
 {
- "cas": "2026-10-18T09:53:32+00:00",
- "balicek": "cz.simtegen.mobilni_aplikace_pro_truhlare_na_navrh_k",
- "vitals": null,
+ "cas": "2026-10-18T19:31:34+00:00",
+ "balicek": "cz.simtegen.kusovnik",
+ "v_play": true,
+ "kod": 1471352,
+ "otisk": null,
+ "vitals": {
+  "den": "2026-10-15",
+  "pady": null,
+  "pady_uzivatele": null,
+  "zamrznuti": null,
+  "zamrznuti_uzivatele": null,
+  "uzivatele": null
+ },
  "recenze": [],
- "chyba": "crashRateMetricSet: 404 {\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"Requested entity was not found.\",\n    \"status\": \"NOT_FOUND\"\n  }\n}\n"
+ "chyba": null
 }
