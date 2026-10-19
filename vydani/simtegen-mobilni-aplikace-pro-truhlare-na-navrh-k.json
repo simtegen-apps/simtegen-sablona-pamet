@@ -1,14 +1,14 @@
 {
- "oznaceni": "rucne-kusovnik-202610182032",
- "stav": "success",
- "balicek": "cz.simtegen.kusovnik",
- "verze": "2026.10.18.1832",
- "kod": 1471352,
+ "oznaceni": "domena-20261019091606-15f2",
+ "stav": "failure",
+ "balicek": "cz.simtegen.mobilni_aplikace_pro_truhlare_na_navrh_k",
+ "verze": "2026.10.19.0716",
+ "kod": 1472116,
  "cilove_api": 36,
  "docasny_klic": false,
  "nahrano": false,
- "stav_play": "neznama",
- "zaznam": true,
- "run_url": "https://github.com/simtegen-apps/simtegen-sablona-pamet/actions/runs/39154599603",
- "cas": "2026-10-18T18:33:53+00:00"
+ "stav_play": null,
+ "zaznam": false,
+ "run_url": "https://github.com/simtegen-apps/simtegen-sablona-pamet/actions/runs/39214894571",
+ "cas": "2026-10-19T07:16:30+00:00"
 }
