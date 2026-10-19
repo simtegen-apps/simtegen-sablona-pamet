@@ -1,6 +1,6 @@
 {
   "repo": "simtegen-appka-pro-mechaniky-a-servisy-na-uskladn",
-  "den": "2026-10-12",
+  "den": "2026-10-19",
   "zobrazeni_30d": 0,
   "ucty_celkem": 3,
   "ucty_nove_30d": 0,
@@ -20,15 +20,15 @@
     },
     "zakaznici": {
       "celkem": 17,
-      "nove_30d": 15
+      "nove_30d": 7
     },
     "sady": {
       "celkem": 29,
-      "nove_30d": 27
+      "nove_30d": 13
     },
     "pohyby": {
       "celkem": 29,
-      "nove_30d": 27
+      "nove_30d": 13
     },
     "clenove": {
       "celkem": 0,
