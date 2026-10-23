@@ -1,0 +1,194 @@
+{
+  "produkt": "",
+  "popis": "",
+  "provozovatel": "SimteGen s.r.o.",
+  "kontakt_email": "",
+  "ico": "",
+  "dic": "",
+  "sidlo": "",
+  "zapis_or": "",
+  "datova_schranka": "",
+  "verze_dokumentu": "2.0",
+  "ucinnost_od": "",
+  "cena_dph": "",
+  "zkusebni_dni": 30,
+  "retence_logy": "",
+  "retence_podpora": "",
+  "retence_doklady": "10 let",
+  "odpovedna_osoba": "",
+  "zastup": "",
+  "ucetni": "",
+  "balancni_test": "",
+  "obsah_zakaznika_popis": "",
+  "subjekty_obsahu": "",
+  "obsah_zakaznika": "uklada_se",
+  "zpracovani": "worker_a_databaze_eu",
+  "externi_pozadavky": "jen_deklarovane",
+  "ukladame": [
+    {
+      "entita": "uzivatele",
+      "ucel": "účet zákazníka a přihlášení",
+      "pole": "e-mailová adresa, čas založení účtu",
+      "retence": "do smazání účtu zákazníkem",
+      "play_typy": [
+        "email"
+      ],
+      "play_ucely": [
+        "ucet",
+        "komunikace"
+      ]
+    },
+    {
+      "entita": "prihlasovaci_odkazy",
+      "ucel": "jednorázové přihlášení e-mailovým odkazem",
+      "pole": "otisk tokenu, e-mailová adresa, expirace",
+      "retence": "24 hodin",
+      "play_typy": [
+        "email"
+      ],
+      "play_ucely": [
+        "ucet",
+        "bezpecnost"
+      ]
+    },
+    {
+      "entita": "relace",
+      "ucel": "udržení přihlášení",
+      "pole": "otisk tokenu, odkaz na účet, expirace",
+      "retence": "30 dní od přihlášení",
+      "play_typy": [
+        "id_uzivatele"
+      ],
+      "play_ucely": [
+        "ucet",
+        "bezpecnost"
+      ]
+    },
+    {
+      "entita": "predplatne",
+      "ucel": "evidence zaplaceného období předplatného",
+      "pole": "odkaz na účet, datum konce předplatného, poznámka k platbě (např. číslo dokladu)",
+      "retence": "do smazání účtu zákazníkem; účetní doklady vede provozovatel mimo aplikaci po zákonnou dobu",
+      "play_typy": [
+        "historie_nakupu"
+      ],
+      "play_ucely": [
+        "funkce",
+        "ucet"
+      ]
+    },
+    {
+      "entita": "hlaseni",
+      "ucel": "hlášení a dotazy zákazníka k aplikaci a naše odpovědi",
+      "pole": "text hlášení, stav vyřízení, odpověď, číslo záznamu v systému podpory, čas",
+      "retence": "do smazání účtu zákazníkem",
+      "play_typy": [
+        "zpravy"
+      ],
+      "play_ucely": [
+        "funkce",
+        "komunikace"
+      ],
+      "play_volitelne": true
+    },
+    {
+      "entita": "platby",
+      "ucel": "evidence zaplacených období předplatného (historie plateb)",
+      "pole": "odkaz na účet, počet zaplacených měsíců, poznámka k platbě, čas zápisu",
+      "retence": "do smazání účtu zákazníkem; účetní doklady vede provozovatel mimo aplikaci po zákonnou dobu",
+      "play_typy": [
+        "historie_nakupu"
+      ],
+      "play_ucely": [
+        "funkce",
+        "ucet"
+      ]
+    },
+    {
+      "entita": "objednavky",
+      "ucel": "objednávka předplatného a doklad o souhlasu se zahájením služby",
+      "pole": "odkaz na účet, délka a varianta předplatného, cena, fakturační údaje, zda jde o spotřebitele, souhlas se zahájením a jeho čas, stav",
+      "retence": "do smazání účtu zákazníkem; účetní doklady vede provozovatel mimo aplikaci po zákonnou dobu",
+      "play_typy": [
+        "jmeno",
+        "adresa",
+        "historie_nakupu"
+      ],
+      "play_ucely": [
+        "funkce",
+        "ucet"
+      ],
+      "play_volitelne": true
+    },
+    {
+      "entita": "zkusebni_doba",
+      "ucel": "upozornění na blížící se a uplynulý konec zkušebního období (v aplikaci a nejvýš třemi provozními e-maily — 2–3 dny a 1 den před koncem a po jeho uplynutí; žádná reklama)",
+      "pole": "odkaz na účet, datum konce zkušebního období, jak ho aplikace odvodí z vašeho účtu",
+      "retence": "do smazání účtu zákazníkem",
+      "play_typy": [
+        "id_uzivatele"
+      ],
+      "play_ucely": [
+        "ucet",
+        "komunikace"
+      ]
+    },
+    {
+      "entita": "upominky",
+      "ucel": "aby každé upozornění na konec zkušebního období odešlo nejvýš jednou",
+      "pole": "odkaz na účet, druh upozornění, čas odeslání",
+      "retence": "do smazání účtu zákazníkem",
+      "play_typy": [
+        "id_uzivatele"
+      ],
+      "play_ucely": [
+        "ucet",
+        "komunikace"
+      ]
+    },
+    {
+      "entita": "ukazkova_data",
+      "ucel": "na vaše přání naplnit prázdný účet vymyšlenými ukázkovými záznamy a jedním klepnutím je zase odstranit",
+      "pole": "odkaz na účet, čísla ukázkových záznamů, čas nahrání (ukázková data sama jsou vymyšlená)",
+      "retence": "do odstranění ukázkových dat nebo smazání účtu zákazníkem",
+      "play_typy": [
+        "id_uzivatele"
+      ],
+      "play_ucely": [
+        "funkce"
+      ]
+    }
+  ],
+  "agregaty": [
+    "navstevy"
+  ],
+  "sluzby_treti_strany": [
+    {
+      "nazev": "Cloudflare",
+      "ucel": "hosting aplikace a databáze (primární instance v EU)",
+      "domena": "",
+      "dpa": "https://www.cloudflare.com/cloudflare-customer-dpa/"
+    },
+    {
+      "nazev": "Resend",
+      "ucel": "odeslání e-mailů k účtu: přihlašovací odkaz, potvrzení objednávky a upozornění na konec zkušebního období",
+      "domena": "api.resend.com",
+      "dpa": "https://resend.com/legal/dpa"
+    },
+    {
+      "nazev": "GitHub",
+      "ucel": "evidence hlášení zákazníků pro podporu (text hlášení a technické údaje o stránce, šifrovaně — GitHub vidí jen nečitelný blok; bez údajů o účtu)",
+      "domena": "api.github.com",
+      "dpa": "https://github.com/customer-terms/github-data-protection-agreement"
+    }
+  ],
+  "uloziste_v_prohlizeci": [],
+  "cookies": [
+    {
+      "nazev": "relace",
+      "ucel": "udržení přihlášení (technická, HttpOnly)",
+      "trvani": "30 dní"
+    }
+  ],
+  "poznamka": "Jediny zdroj pravdy o datech produktu. Zasady, obchodni podminky, zpracovatelska smlouva, formular pro odstoupeni, zaznam o zpracovani i postup pri incidentu se GENERUJI z tohoto souboru (python3 vykresli_zasady.py) a kontrola_manifestu.py shazuje build, kdyz se kod nebo vygenerovane soubory s manifestem rozejdou. Kazda nova tabulka = zaznam v ukladame + migrace v db/migrace/ se sloupcem uzivatel_id. Prazdne sloty (ico, sidlo, dic, zapis_or, kontakt_email, ucinnost_od, cena_dph, retence_logy, retence_podpora, odpovedna_osoba, zastup, ucetni, balancni_test) se vykresli cervene jako (doplnit ...) - s nimi se nesmi jit do produkce. obsah_zakaznika_popis a subjekty_obsahu popisuji obsah, ktery do produktu vklada zakaznik (zpracovatelska smlouva, cl. 2) - stavitel je vyplni podle produktu. agregaty = tabulky bez uzivatel_id, ktere smi obsahovat jen souhrnna cisla (den, stranka, pocet) - kontrola hlida, ze v nich neni zadny osobni sloupec."
+}

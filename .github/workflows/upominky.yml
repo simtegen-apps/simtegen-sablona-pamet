@@ -1,0 +1,64 @@
+# Upomínky před koncem zkušebního období — e-mail zákazníkovi, kterému končí
+# zkušební doba a ještě nezaplatil: 2–3 dny před koncem, den před koncem
+# a po konci (co dál funguje a jak pokračovat). Každá nejvýš jednou na účet.
+# Logika a zdůvodnění: .github/nastroje/upominky.py.
+#
+# Proč tady: Pages Functions nemají plánovač, workflow soubory v produktech
+# se nikdy neaktualizují (token bota na ně nesmí) a repo šablony dostane
+# každý merge samo — stejně jako Metriky. Běží PLÁNOVANĚ jen v repu šablony
+# (simtegen-sablona-pamet), pro každý produkt s databází `<repo>-db`;
+# v produktových repech je soubor zděděný a plánovaný běh se přeskočí.
+# Ručně: Run workflow (`projekt` = jeden produkt, `nanecisto` = jen spočítat).
+#
+# Bez RESEND_API_KEY / EMAIL_ODESILATEL (org secret / variable) se nic
+# neposílá ani nezapisuje a běh skončí zeleně. Logy jsou veřejné, proto
+# v nich jsou jen počty, nikdy adresa. SimteGen na workflow soubory nesahá.
+
+name: Upominky
+
+on:
+  schedule:
+    - cron: "23 7 * * *"   # denně 07:23 UTC = 8:23 / 9:23 v Česku
+  workflow_dispatch:
+    inputs:
+      projekt:
+        description: "Název repa produktu (prázdné = všechny produkty s databází na Cloudflare)"
+        required: false
+        default: ""
+      nanecisto:
+        description: "Jen spočítat, komu by co odešlo — nic neposílat ani nezapisovat"
+        type: boolean
+        required: false
+        default: false
+
+# Two runs at once would race for the same claims; the primary key keeps
+# them from sending twice, but one queue is simpler to read in the log.
+concurrency:
+  group: upominky
+  cancel-in-progress: false
+
+jobs:
+  posli:
+    if: github.event_name == 'workflow_dispatch' || github.event.repository.name == 'simtegen-sablona-pamet'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Posli upominky
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          EMAIL_ODESILATEL: ${{ vars.EMAIL_ODESILATEL }}
+          PROJEKT_VSTUP: ${{ inputs.projekt }}
+          PRODUKTY: ${{ vars.SIMTEGEN_PRODUKTY }}
+          REPO_NAME: ${{ github.event.repository.name }}
+          VLASTNIK: ${{ github.repository_owner }}
+          NANECISTO: ${{ inputs.nanecisto }}
+        run: python3 .github/nastroje/upominky.py
