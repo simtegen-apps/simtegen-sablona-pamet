@@ -1,10 +1,17 @@
 {
- "cas": "2026-10-23T10:31:36+00:00",
+ "cas": "2026-10-24T09:47:52+00:00",
  "balicek": "cz.simtegen.kusovnik",
  "v_play": true,
  "kod": 1471352,
  "otisk": "A2:90:CB:31:B4:E3:4F:8A:95:87:66:D2:86:FE:42:FE:36:FD:A0:09:41:7C:49:1D:1B:9F:76:19:99:DD:0E:95",
- "vitals": null,
+ "vitals": {
+  "den": "2026-10-16",
+  "pady": null,
+  "pady_uzivatele": null,
+  "zamrznuti": null,
+  "zamrznuti_uzivatele": null,
+  "uzivatele": null
+ },
  "recenze": [],
- "chyba": "crashRateMetricSet:query: 500 {\n  \"error\": {\n    \"code\": 500,\n    \"message\": \"Internal error encountered.\",\n    \"status\": \"INTERNAL\"\n  }\n}\n"
+ "chyba": null
 }
