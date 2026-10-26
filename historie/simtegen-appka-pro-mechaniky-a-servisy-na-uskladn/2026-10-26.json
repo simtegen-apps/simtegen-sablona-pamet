@@ -1,0 +1,48 @@
+{
+  "repo": "simtegen-appka-pro-mechaniky-a-servisy-na-uskladn",
+  "den": "2026-10-26",
+  "zobrazeni_30d": 0,
+  "ucty_celkem": 3,
+  "ucty_nove_30d": 0,
+  "aktivni_7d": 0,
+  "aktivni_30d": 1,
+  "zkusebni": 0,
+  "predplatne_aktivni": 0,
+  "predplatne_vyprsele": 0,
+  "platby_30d": 0,
+  "platici_ucty": 0,
+  "ucty_s_druhou_platbou": 0,
+  "hlaseni_30d": 0,
+  "pouziti": {
+    "nastaveni_servisu": {
+      "celkem": 3,
+      "nove_30d": 0
+    },
+    "zakaznici": {
+      "celkem": 17,
+      "nove_30d": 0
+    },
+    "sady": {
+      "celkem": 29,
+      "nove_30d": 0
+    },
+    "pohyby": {
+      "celkem": 29,
+      "nove_30d": 0
+    },
+    "clenove": {
+      "celkem": 0,
+      "nove_30d": 0
+    },
+    "objednavky_predplatneho": {
+      "celkem": 1,
+      "nove_30d": 0
+    },
+    "play_nakupy": {
+      "celkem": 0,
+      "nove_30d": null
+    }
+  },
+  "zdroje": {},
+  "konverze": null
+}

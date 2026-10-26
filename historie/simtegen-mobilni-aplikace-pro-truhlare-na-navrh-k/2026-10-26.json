@@ -1,0 +1,48 @@
+{
+  "repo": "simtegen-mobilni-aplikace-pro-truhlare-na-navrh-k",
+  "den": "2026-10-26",
+  "zobrazeni_30d": 66,
+  "ucty_celkem": 3,
+  "ucty_nove_30d": 3,
+  "aktivni_7d": 1,
+  "aktivni_30d": 3,
+  "zkusebni": 0,
+  "predplatne_aktivni": 2,
+  "predplatne_vyprsele": 1,
+  "platby_30d": 0,
+  "platici_ucty": 0,
+  "ucty_s_druhou_platbou": 0,
+  "hlaseni_30d": 2,
+  "pouziti": {
+    "standardy": {
+      "celkem": 3,
+      "nove_30d": 3
+    },
+    "materialy": {
+      "celkem": 2,
+      "nove_30d": 2
+    },
+    "zakazky": {
+      "celkem": 8,
+      "nove_30d": 8
+    },
+    "steny": {
+      "celkem": 11,
+      "nove_30d": 11
+    },
+    "skrinky": {
+      "celkem": 25,
+      "nove_30d": 25
+    },
+    "kusovniky": {
+      "celkem": 4,
+      "nove_30d": 4
+    },
+    "play_nakupy": {
+      "celkem": 0,
+      "nove_30d": null
+    }
+  },
+  "zdroje": {},
+  "konverze": null
+}
