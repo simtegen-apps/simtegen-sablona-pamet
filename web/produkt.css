@@ -1,0 +1,13 @@
+/* Barva produktu — jediné místo, kde se produkt vzhledem liší od ostatních
+ * appek SimteGen. Stavitel ji volí podle tématu produktu a zapíše do spec
+ * (pole design). Smí tu být jen proměnná --barva-produktu (a táž pro tmavý
+ * režim v @media prefers-color-scheme: dark). CI hlídá kontrast: na papíře
+ * #f6f4ef aspoň 4.5:1, v tmavém režimu na #161513 taky. */
+:root {
+  --barva-produktu: #c2410c;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --barva-produktu: #f07a45;
+  }
+}

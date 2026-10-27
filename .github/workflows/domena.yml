@@ -1,0 +1,97 @@
+# Podadresa produktu na firemní doméně (kusovnik.simtegen.com) místo
+# <projekt>.pages.dev.
+#
+# Spouští ho SimteGen (domeny.py), jednou za produkt a při přejmenování.
+# Sahá na DNS firemní domény, takže ho token bota sám spustit nesmí: první
+# krok pustí běh jen s podpisem SimteGenu nebo pro správce ze
+# SIMTEGEN_SPRAVCI — stejně jako Faktura, Platba a Play odpoved.
+#
+# Org secret CLOUDFLARE_API_TOKEN k tomu potřebuje navíc:
+#   Zone → Zone → Read a Zone → DNS → Edit (pro firemní zónu)
+#   Account → Account Filter Lists → Edit a Account → Account Rulesets → Edit
+#     (přesměrování z pages.dev; bez nich adresa funguje, jen se nepřesměruje)
+#
+# Výsledek jde do větve metriky (domeny/<projekt>.json) — vždy, i po selhání.
+
+name: Domena
+run-name: "Domena ${{ inputs.subdomena }}.${{ inputs.zona }} (${{ inputs.projekt }})"
+
+on:
+  workflow_dispatch:
+    inputs:
+      projekt:
+        description: "Název repa produktu (= projekt v Cloudflare Pages)"
+        required: true
+      subdomena:
+        description: "Podadresa, např. kusovnik"
+        required: true
+      zona:
+        description: "Firemní doména"
+        required: true
+        default: "simtegen.com"
+      oznaceni:
+        description: "Značka běhu (vyplňuje SimteGen)"
+        required: false
+        default: ""
+      podpis:
+        description: "Podpis SimteGenu (vyplňuje firma; ruční běh správce ho nepotřebuje)"
+        required: false
+        default: ""
+
+jobs:
+  nastav:
+    if: github.repository == 'simtegen-apps/simtegen-sablona-pamet'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Over pokyn (podpis SimteGenu nebo spravce)
+        env:
+          PODPIS_KLIC: ${{ vars.SIMTEGEN_PODPIS }}
+          SPRAVCI: ${{ vars.SIMTEGEN_SPRAVCI }}
+          AKTER: ${{ github.triggering_actor }}
+          WORKFLOW: ${{ github.workflow }}
+          VSTUPY: ${{ toJSON(inputs) }}
+        run: python3 .github/nastroje/over_pokyn.py
+
+      - name: Nastav podadresu
+        id: nastav
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PROJEKT: ${{ inputs.projekt }}
+          SUBDOMENA: ${{ inputs.subdomena }}
+          ZONA: ${{ inputs.zona }}
+          OZNACENI: ${{ inputs.oznaceni }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: python3 .github/nastroje/domena.py nastav
+
+      - name: Uloz vysledek pro SimteGen
+        if: always() && steps.nastav.outcome != 'skipped'
+        env:
+          PROJEKT: ${{ inputs.projekt }}
+          OZNACENI: ${{ inputs.oznaceni }}
+          GH_TOKEN: ${{ github.token }}
+          REPO_FULL: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          test -f domeny/vysledek.json || { echo "Skript výsledek nezapsal."; exit 1; }
+          git config --global user.name "SimteGen domena"
+          git config --global user.email "simtegen@users.noreply.github.com"
+          git clone -q --depth 1 --branch metriky "https://x-access-token:${GH_TOKEN}@github.com/${REPO_FULL}.git" vetev 2>/dev/null || {
+            mkdir vetev && git -C vetev init -q -b metriky
+            git -C vetev remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${REPO_FULL}.git"
+          }
+          mkdir -p vetev/domeny
+          cp domeny/vysledek.json "vetev/domeny/${PROJEKT}.json"
+          git -C vetev add -A
+          git -C vetev commit -q -m "domena ${PROJEKT} ${OZNACENI}" || { echo "beze zmeny"; exit 0; }
+          # Metriky, Vydani and Play write the same branch; on a race, rebase and retry.
+          for pokus in 1 2 3; do
+            git -C vetev push -q origin metriky && exit 0
+            git -C vetev pull -q --rebase origin metriky || true
+          done
+          echo "Výsledek se do větve metriky nepodařilo zapsat."
+          exit 1
