@@ -1,9 +1,9 @@
 {
- "oznaceni": "nasazeni-20261023103402-906a",
+ "oznaceni": "nasazeni-20261102083704-91a1",
  "stav": "failure",
  "balicek": "cz.simtegen.kusovnik",
- "verze": "2026.10.23.0834",
- "kod": 1477954,
+ "verze": "2026.11.02.0737",
+ "kod": 1492297,
  "cilove_api": 36,
  "docasny_klic": false,
  "nahrano": false,
@@ -12,6 +12,6 @@
  "bezpecnost_dat": null,
  "nakupy": true,
  "predplatne_play": null,
- "run_url": "https://github.com/simtegen-apps/simtegen-sablona-pamet/actions/runs/39925556485",
- "cas": "2026-10-23T08:34:30+00:00"
+ "run_url": "https://github.com/simtegen-apps/simtegen-sablona-pamet/actions/runs/41407461277",
+ "cas": "2026-11-02T07:37:30+00:00"
 }
