@@ -1,7 +1,7 @@
 {
   "repo": "simtegen-sablona-pamet",
-  "den": "2026-10-26",
-  "zobrazeni_30d": 9,
+  "den": "2026-11-02",
+  "zobrazeni_30d": 4,
   "ucty_celkem": 0,
   "ucty_nove_30d": 0,
   "aktivni_7d": 0,
@@ -26,5 +26,18 @@
     "upominky_pred_1_30d": 0,
     "upominky_konec_30d": 0,
     "ucty_s_ukazkovymi_daty": 0
+  },
+  "cesta": {
+    "ukazka_ucty_30d": 0,
+    "ukazkova_data_30d": 0,
+    "nove_30d": 0,
+    "s_prvnim_zaznamem_30d": null,
+    "zaplatili_30d": 0
+  },
+  "chyby_stranek": {
+    "celkem_7d": 0,
+    "celkem_30d": 0,
+    "dni_7d": 0,
+    "mista": []
   }
 }
