@@ -1,0 +1,83 @@
+# Upomínka faktury po splatnosti. Spouští ji SimteGen (firma) pár dní po
+# splatnosti nezaplacené faktury a jednou později znovu; majitel se o faktuře
+# dozví až po nich. E-mail zákazníka je v databázi produktu a klíč Resend
+# v organizaci — proto tady, stejně jako Faktura. Jen text, bez PDF.
+#
+# Když objednávka mezitím není `fakturovana` (zaplacená, zrušená), nic se
+# neposílá. run-name nese číslo faktury a pořadí upomínky.
+
+name: Upominka faktury
+run-name: "Upominka ${{ inputs.cislo }}/${{ inputs.poradi }} (${{ inputs.projekt }})"
+
+on:
+  workflow_dispatch:
+    inputs:
+      projekt:
+        description: "Název repa produktu"
+        required: true
+      objednavka:
+        description: "Id objednávky v databázi produktu"
+        required: true
+      cislo:
+        description: "Číslo faktury"
+        required: true
+      castka_czk:
+        description: "Částka v Kč (celé číslo)"
+        required: true
+      splatnost:
+        description: "Původní splatnost YYYY-MM-DD"
+        required: true
+      poradi:
+        description: "Kolikátá upomínka (1, 2…)"
+        required: true
+      dodavatel:
+        description: "JSON: nazev, email, ucet"
+        required: true
+      podpis:
+        description: "Podpis SimteGenu (vyplňuje firma; ruční běh správce ho nepotřebuje)"
+        required: false
+        default: ""
+
+concurrency:
+  group: upominka-${{ inputs.projekt }}-${{ inputs.cislo }}
+  cancel-in-progress: false
+
+jobs:
+  posli:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # A stolen bot token must not be enough to mail customers: SimteGen's
+      # signature or a listed human (.github/nastroje/over_pokyn.py).
+      - name: Over pokyn (podpis SimteGenu nebo spravce)
+        env:
+          PODPIS_KLIC: ${{ vars.SIMTEGEN_PODPIS }}
+          SPRAVCI: ${{ vars.SIMTEGEN_SPRAVCI }}
+          AKTER: ${{ github.triggering_actor }}
+          WORKFLOW: ${{ github.workflow }}
+          VSTUPY: ${{ toJSON(inputs) }}
+        run: python3 .github/nastroje/over_pokyn.py
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Posli upominku
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          EMAIL_ODESILATEL: ${{ vars.EMAIL_ODESILATEL }}
+          PROJEKT: ${{ inputs.projekt }}
+          OBJEDNAVKA: ${{ inputs.objednavka }}
+          CISLO: ${{ inputs.cislo }}
+          CASTKA_CZK: ${{ inputs.castka_czk }}
+          SPLATNOST: ${{ inputs.splatnost }}
+          PORADI: ${{ inputs.poradi }}
+          DODAVATEL: ${{ inputs.dodavatel }}
+        run: python3 .github/nastroje/upominka_faktury.py

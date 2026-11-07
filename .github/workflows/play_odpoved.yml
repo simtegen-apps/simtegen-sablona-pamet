@@ -1,0 +1,56 @@
+# Odpověď na recenzi v Google Play — veřejně, jménem firmy.
+#
+# Spouští ho SimteGen, až majitel přes ARGA řekne, co odpovědět. Odpověď je
+# veřejná a nese jméno firmy, takže ji token bota sám poslat nesmí: první
+# krok pustí běh jen s podpisem SimteGenu (nebo když ho ručně spustí
+# správce ze SIMTEGEN_SPRAVCI) — stejně jako Faktura a Platba.
+
+name: Play odpoved
+run-name: "Odpoved recenze ${{ inputs.recenze }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      balicek:
+        description: "Balíček aplikace v Google Play"
+        required: true
+      recenze:
+        description: "Id recenze (reviewId)"
+        required: true
+      text:
+        description: "Text odpovědi (nejvýš 350 znaků, česky, vykat)"
+        required: true
+      podpis:
+        description: "Podpis SimteGenu (vyplňuje firma; ruční běh správce ho nepotřebuje)"
+        required: false
+        default: ""
+
+jobs:
+  odpovez:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Over pokyn (podpis SimteGenu nebo spravce)
+        env:
+          PODPIS_KLIC: ${{ vars.SIMTEGEN_PODPIS }}
+          SPRAVCI: ${{ vars.SIMTEGEN_SPRAVCI }}
+          AKTER: ${{ github.triggering_actor }}
+          WORKFLOW: ${{ github.workflow }}
+          VSTUPY: ${{ toJSON(inputs) }}
+        run: python3 .github/nastroje/over_pokyn.py
+
+      - name: Odesli odpoved
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          BALICEK: ${{ inputs.balicek }}
+          RECENZE: ${{ inputs.recenze }}
+          TEXT: ${{ inputs.text }}
+        run: |
+          set -euo pipefail
+          if [ -z "$PLAY_SERVICE_ACCOUNT_JSON" ]; then
+            echo "Chybí org secret PLAY_SERVICE_ACCOUNT_JSON — odpověď nejde poslat."
+            exit 1
+          fi
+          python3 -m pip install --quiet google-auth requests
+          python3 .github/nastroje/play.py odpovez
