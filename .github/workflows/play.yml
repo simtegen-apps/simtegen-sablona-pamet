@@ -1,0 +1,62 @@
+# Data z Google Play pro SimteGen — denně, jen v repu šablony.
+#
+# Pro každou vydanou aplikaci (soubory vydani/<projekt>.json ve větvi
+# metriky, zapisuje je workflow Vydani) stáhne Android vitals (podíl pádů
+# a zamrznutí) a nové recenze a uloží je do play/<projekt>.json ve stejné
+# větvi. SimteGen je odtud čte: čísla jdou do přehledu, recenze do schránky.
+# Bez org secret PLAY_SERVICE_ACCOUNT_JSON zapíše jen „nepřipojeno“.
+#
+# V produktových repech je soubor zděděný ze šablony a běh se v nich přeskočí.
+
+name: Play
+
+on:
+  schedule:
+    - cron: "41 5 * * *"   # denně 05:41 UTC
+  workflow_dispatch:
+
+jobs:
+  stahni:
+    # Only from main. The workflow file is the same on every branch (the
+    # bot token may not touch workflows), the scripts it runs are not: a
+    # branch pushed with a stolen token could carry its own .github/nastroje
+    # (over_pokyn.py included) next to these secrets.
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || github.event.repository.name == 'simtegen-sablona-pamet')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      # A clean toolcache Python: pinned, hash-checked libraries install into
+      # it without touching (or tripping over) the runner's system packages.
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+
+      - name: Stahni z Google Play
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          GH_TOKEN: ${{ github.token }}
+          REPO_FULL: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          git config --global user.name "SimteGen play"
+          git config --global user.email "simtegen@users.noreply.github.com"
+          git clone -q --depth 1 --branch metriky "https://x-access-token:${GH_TOKEN}@github.com/${REPO_FULL}.git" vetev 2>/dev/null || {
+            echo "Větev metriky zatím neexistuje — žádná aplikace ještě nebyla vydána."
+            exit 0
+          }
+          if [ -n "$PLAY_SERVICE_ACCOUNT_JSON" ]; then
+            python3 -m pip install --quiet --disable-pip-version-check --require-hashes -r .github/nastroje/knihovny_play.txt
+          fi
+          python3 .github/nastroje/play.py stahni vetev
+          git -C vetev add -A
+          git -C vetev commit -q -m "play $(date -u +%F)" || { echo "beze zmeny"; exit 0; }
+          # Metriky and Vydani write the same branch; on a race, rebase and retry.
+          for pokus in 1 2 3; do
+            git -C vetev push -q origin metriky && exit 0
+            git -C vetev pull -q --rebase origin metriky || true
+          done
+          echo "Data se do větve metriky nepodařilo zapsat."
+          exit 1

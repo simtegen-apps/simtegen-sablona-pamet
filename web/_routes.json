@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "description": "Functions (a s nimi middleware s dotazem do D1) běží jen pro /api/* — statické soubory je nesmí platit.",
+  "include": ["/api/*"],
+  "exclude": []
+}

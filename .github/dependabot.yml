@@ -1,0 +1,19 @@
+# Dependabot hlídá akce GitHubu, které workflow používají (připnuté na
+# commit SHA s komentářem verze) — jednou týdně jedno souhrnné PR.
+#
+# The real source of these workflows is SimteGen (sablona*/.github/), which
+# republishes the template on every change. A Dependabot PR here is the
+# notice: the update goes into SimteGen and reaches existing products via
+# ops/obnov-workflow-produktu.ps1. In a product repo its PR cannot pass the
+# required "deploy" check (that workflow runs only on main and build/**).
+
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      akce:
+        patterns: ["*"]
+    open-pull-requests-limit: 1
