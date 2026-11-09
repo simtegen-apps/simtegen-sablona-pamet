@@ -1,17 +1,18 @@
 {
- "oznaceni": "rucne-kusovnik-test",
- "stav": "failure",
+ "oznaceni": "rucne-kusovnik-test-new",
+ "stav": "success",
  "balicek": "cz.simtegen.kusovnik",
- "verze": "2026.11.09.2021",
- "kod": 1503141,
+ "verze": "2026.11.09.2113",
+ "kod": 1503193,
  "cilove_api": 36,
  "docasny_klic": false,
- "nahrano": false,
- "stav_play": null,
+ "nahrano": true,
+ "stav_play": "completed",
  "zaznam": true,
- "bezpecnost_dat": null,
+ "zaznam_play": false,
+ "bezpecnost_dat": false,
  "nakupy": true,
  "predplatne_play": null,
- "run_url": "https://github.com/simtegen-apps/simtegen-sablona-pamet/actions/runs/42691969909",
- "cas": "2026-11-09T20:24:26+00:00"
+ "run_url": "https://github.com/simtegen-apps/simtegen-sablona-pamet/actions/runs/42700148097",
+ "cas": "2026-11-09T21:16:11+00:00"
 }
