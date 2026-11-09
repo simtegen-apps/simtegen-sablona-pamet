@@ -1,67 +1,8 @@
-{
-  "repo": "simtegen-appka-pro-mechaniky-a-servisy-na-uskladn",
-  "den": "2026-11-02",
-  "zobrazeni_30d": 0,
-  "ucty_celkem": 3,
-  "ucty_nove_30d": 0,
-  "aktivni_7d": 0,
-  "aktivni_30d": 0,
-  "zkusebni": 0,
-  "predplatne_aktivni": 0,
-  "predplatne_vyprsele": 0,
-  "platby_30d": 0,
-  "platici_ucty": 0,
-  "ucty_s_druhou_platbou": 0,
-  "hlaseni_30d": 0,
-  "pouziti": {
-    "nastaveni_servisu": {
-      "celkem": 3,
-      "nove_30d": 0
-    },
-    "zakaznici": {
-      "celkem": 17,
-      "nove_30d": 0
-    },
-    "sady": {
-      "celkem": 29,
-      "nove_30d": 0
-    },
-    "pohyby": {
-      "celkem": 29,
-      "nove_30d": 0
-    },
-    "clenove": {
-      "celkem": 0,
-      "nove_30d": 0
-    },
-    "objednavky_predplatneho": {
-      "celkem": 1,
-      "nove_30d": 0
-    },
-    "play_nakupy": {
-      "celkem": 0,
-      "nove_30d": null
-    }
-  },
-  "zdroje": {},
-  "konverze": {
-    "zkusebni_sledovano": 0,
-    "skoncilo_30d": 0,
-    "zaplatilo_30d": 0,
-    "skoncilo_celkem": 0,
-    "zaplatilo_celkem": 0,
-    "zaplatilo_po_upomince": 0,
-    "upominky_pred_3_30d": 0,
-    "upominky_pred_1_30d": 0,
-    "upominky_konec_30d": 0,
-    "ucty_s_ukazkovymi_daty": 0
-  },
-  "cesta": {
-    "ukazka_ucty_30d": 0,
-    "ukazkova_data_30d": 0,
-    "nove_30d": 0,
-    "s_prvnim_zaznamem_30d": 0,
-    "zaplatili_30d": 0
-  },
-  "chyby_stranek": null
-}
+Metriky produktu. Sifrovane - cist je umi jen SimteGen.
+
+-----SIMTEGEN SIFRA v1-----
+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
+-----KONEC SIFRY-----

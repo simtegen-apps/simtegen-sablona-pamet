@@ -1,43 +1,7 @@
-{
-  "repo": "simtegen-sablona-pamet",
-  "den": "2026-11-02",
-  "zobrazeni_30d": 4,
-  "ucty_celkem": 0,
-  "ucty_nove_30d": 0,
-  "aktivni_7d": 0,
-  "aktivni_30d": 0,
-  "zkusebni": 0,
-  "predplatne_aktivni": 0,
-  "predplatne_vyprsele": 0,
-  "platby_30d": 0,
-  "platici_ucty": 0,
-  "ucty_s_druhou_platbou": 0,
-  "hlaseni_30d": 0,
-  "pouziti": {},
-  "zdroje": {},
-  "konverze": {
-    "zkusebni_sledovano": 0,
-    "skoncilo_30d": 0,
-    "zaplatilo_30d": 0,
-    "skoncilo_celkem": 0,
-    "zaplatilo_celkem": 0,
-    "zaplatilo_po_upomince": 0,
-    "upominky_pred_3_30d": 0,
-    "upominky_pred_1_30d": 0,
-    "upominky_konec_30d": 0,
-    "ucty_s_ukazkovymi_daty": 0
-  },
-  "cesta": {
-    "ukazka_ucty_30d": 0,
-    "ukazkova_data_30d": 0,
-    "nove_30d": 0,
-    "s_prvnim_zaznamem_30d": null,
-    "zaplatili_30d": 0
-  },
-  "chyby_stranek": {
-    "celkem_7d": 0,
-    "celkem_30d": 0,
-    "dni_7d": 0,
-    "mista": []
-  }
-}
+Metriky produktu. Sifrovane - cist je umi jen SimteGen.
+
+-----SIMTEGEN SIFRA v1-----
+kyshnhHPNCBFNoStM1/AJdJVp4fY44Z50BTKb83ATRiXyDcw4oufgkOv23+tSGdQZGRhaJOZSbQ7eFjjkZ/nrWc+i7t+4oNHZGzZ0itxVWg/bPO7gIXaExE8oHC9auP9jytvy6CdkUg30wUhZICW5sqA1B5Ms8sTqJRFNUY3CmUTZiMR2b/hhHA7aVqxhmKAj4LQqirT4W4WjsI/6ASYhldLxj3qFJ5ucxNOncZXDS974vmRGG16ahNx5KXCsEClsH3DTr7907z0WLD8lNs2rqw504n9rscz2ohvPSreyZysyKmid6WyiNZLqs3kdywhKZF/qfjnYW5Io/9Y/ebs5Mi5TUNFIdyTeHZPrp8Q5EzJ1/tmFfL2u9ebvqAXx9tYnkI5BJP/UA2mQcDF0GhDImYrRdL5YJ7HpK5I6DtioOOFUlBJ5YYENIrZe98+vv1YOtxNWgAhNG5gi16Ewzflbyp5IPqSko1eYfNGK6r1ASP6dKGjrXotUmHuIAWu0/dY
+jujQ2lTJop2G/9/QWMYsYb2HGroQi54Ru7t6g1o4E65hVU0G3t7XV+v4NxaARXFirJR1wBxXFooFHqRw4DHu2cj8Ew+v6A+7b0ax4XG86QipJC+aV+z1vxerWX8AvmBTzmVWtqgM0AZnPf1kKPe2yhxjO2hQmi3FLKYXbClYR0k4GXYZTtGdooCetanq5e1awCi2seFBwjNondCr4y6b7VllZS7dMQK/NEVOapbWbWeAuPqoFlzJH3AUTkvP7OOSR/xeuxxNOGxcNRVeKOvSYBI2fRBGJZmvoSLN6XT6Vtg4aIwdjWUVkVnFbrgKL2yUj7Vw4cq9OKbIB3WYbzo8FPJKw2YdIi+FDDp6+wdQyZ8W2ApWe7+6mo6S8MmPpnZwMf8ntSfaxrbY+Pzk9llClsG0BsaJEjlM9Hg0vmnByQkvsyliWC51DwuHp9bOkiXLJEn5fseSl1nfEFXhj7/tNo7KpKuzPJUd4Wwb5JxGYWadRxBcSsts+mkB7lWp7TxS
+Fp46WcOLqbb2VRoIOcMMhGXILFMI4rJ8j0T1BO6xxQmrCiRbVtBPOgaez0WH84ebPTeBLASrtHchkL/y54O85H1J3z4Hal5xqQf5JAcPycxRxKn27BzPBhOHqjgOIg5BTfBdpyzOaOksGg17xfokNG56JjXbQ5jA0tm7S+NUZ9lOhpy3iBLY3Kjv3gW2xKS0ZuXC2y6bWiMW5a9UJLjngjnfVfjBb2Q5HcltM/xn7KoJ5GpQqqrwOtvVXZb+ikzQh8upicttaxe5rBaquHPDeiIYuiWEKdI1pvK43KR82z7Fh97dhGec+zg+5BKsIMc2VM1lcEWBuvk2L6qEfowZd654XtjOa32ViTvSTqqEDmX+hmWoTPZHVKB1acFBCctcC8UMKeW/4FeGLaHDvO4hlCaQBGd5x1hhuC1W0Or2RWRwxoxRRYvfzYLU6Iw8pRhlfDwD4J0bni01RsoY9ihENaL2aE8IPu5QU73rPrqIA9eMPcKDAzKrmq0tCGYsdfUp
+-----KONEC SIFRY-----

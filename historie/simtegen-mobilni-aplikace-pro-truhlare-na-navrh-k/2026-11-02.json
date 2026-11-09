@@ -1,67 +1,7 @@
-{
-  "repo": "simtegen-mobilni-aplikace-pro-truhlare-na-navrh-k",
-  "den": "2026-11-02",
-  "zobrazeni_30d": 53,
-  "ucty_celkem": 3,
-  "ucty_nove_30d": 1,
-  "aktivni_7d": 0,
-  "aktivni_30d": 2,
-  "zkusebni": 0,
-  "predplatne_aktivni": 0,
-  "predplatne_vyprsele": 3,
-  "platby_30d": 0,
-  "platici_ucty": 0,
-  "ucty_s_druhou_platbou": 0,
-  "hlaseni_30d": 0,
-  "pouziti": {
-    "standardy": {
-      "celkem": 3,
-      "nove_30d": 1
-    },
-    "materialy": {
-      "celkem": 2,
-      "nove_30d": 2
-    },
-    "zakazky": {
-      "celkem": 8,
-      "nove_30d": 6
-    },
-    "steny": {
-      "celkem": 11,
-      "nove_30d": 8
-    },
-    "skrinky": {
-      "celkem": 25,
-      "nove_30d": 24
-    },
-    "kusovniky": {
-      "celkem": 4,
-      "nove_30d": 3
-    },
-    "play_nakupy": {
-      "celkem": 0,
-      "nove_30d": null
-    }
-  },
-  "zdroje": {},
-  "konverze": {
-    "zkusebni_sledovano": 0,
-    "skoncilo_30d": 0,
-    "zaplatilo_30d": 0,
-    "skoncilo_celkem": 0,
-    "zaplatilo_celkem": 0,
-    "zaplatilo_po_upomince": 0,
-    "upominky_pred_3_30d": 0,
-    "upominky_pred_1_30d": 0,
-    "upominky_konec_30d": 0,
-    "ucty_s_ukazkovymi_daty": 0
-  },
-  "cesta": {
-    "ukazka_ucty_30d": 1,
-    "ukazkova_data_30d": 0,
-    "nove_30d": 0,
-    "s_prvnim_zaznamem_30d": 0,
-    "zaplatili_30d": 0
-  },
-  "chyby_stranek": null
-}
+Metriky produktu. Sifrovane - cist je umi jen SimteGen.
+
+-----SIMTEGEN SIFRA v1-----
+mUDX0bQYB38BsVU/WKzqSSZR9COCw2y2Xzvbu3rcO9v3GWD8xh9pi/o8SxSlL9i9K2458QMn/NrSatVi59GMYlQJ96MtT5PrGQEcvH6t/vVWnoB+Og14X/gpWFrGI5lzUDksM9M4Cs3ho08fq5lfByXwLodmtab7SWY4Sj1O8GtFw5uQaDaJ6kez6JhsgojLv4vURYa1Gg6JBYRkFjxHt1cVVs7918O7HkzGZP/rUROAPFZM/ulxd4RiW0SPMeq3Z0/BkBTTwV10mnZ98p7tt2EifvmVxmry4HONWonPEe5J0wvy17FxTlGLbb5G4Sd+F+N/sviBWD5yU0IpfgPMzcC9Z4WpYs+ZnOUmJdIFKCJ4zoP/pTqTYozcsXOtYOdq5pSi9HQS8aqGyBPgp13YHNPeSEmV/JJ97JS+mWdgIL2PSVBJAhLCk5M8aaQM5a/JDm1fgkyPqO3jrYTjz/l3U5Iw5BbX4lbg1jI/o5qoVAxWIAmkYMHVeBv1EOF3zeao
+RmqyDOhJSuAEDm1tcNAqBNAJRXQfaFZcl+cNDLtMueWHdQarPVDc+MEmJjbMuZnu02ZC6JcPojLoXiGTtHvR+UMaU3C5dJY2WVqp/4s7claOTVK13gsv93Tb6JVEPDMSTaPgXjYlyoMnj+fFKNi4cdj3zXuLEkBUCgL+dvRR+QsFnKqkoOU1enReIkUf1PsMjyX3dwQMlrHj3NSG9BvFl5MeIPzsPH3mcWN+rHYWZu+PENkvhn1INXUwA/HbGfHslViMAR6z5A+yIX/tp/7itaRaYAqzOMPL3sO0eHQxCt6vera9jId7niRIsx4JVePF2KpEYLE+H7x5/2LFvtemgTlBAIcIH8YVdkxKFToDJgj15KikjuxfTlIEIS1XYoG62AVz+f8S8oa79Eb5txsnAZmfsL9xTGmNvkc+oqRKtL2aWW4WK/+ke21GSAXe10yeHY9UCw1JrpaIyyjyAJb1zDYG735AiXTb5/Ym45oxN28NE7vf2HPiI+DWmQNF6Hhu
+M+UfXAY/L71g/CFFFwgRnBQUSa0alCIRuZlAAXz60k/pk0rCs7TFiX2wM6pAOMw8aPiLLbZHxyJ/tr8+ilbaJ08dF46QWqPeK1uy6kfawgQLM1J6Y+2wdsTnLHMVbFj1vFVWu1AMBxO2QENyE+6kBcJnWh2NazlQliGBP9DuVU0LDzmWtD4FVhoTh6zC7JvlxwdlYEuph8NgL7x/UGriWlDaL/Vb9dkR38Uoda5uPYXYqU02SKLcZZHcqTmNnsdtaJC0/aFnYVZ9gX016Rv61eKLH1LFhz6AbX4SGzIDnJ42NK6HhS6iWjrsfgQXbeV4E3rUQa9MHFI93mGQaaUijFXyko30AXzGCFgQlyIedoO8L3zJL2Vu0jyL113s81aKUq2bPJaFmdb9HRSoqeLfx/VlC+VdcxxLR7z8ljPwITttP8NwAhIlmLkDghtFwse/QDj8FIFPupi46S0aY6zWp8Kh4wKDgukSRIXtxZN1dZMr8I/A/eLxCnlJw6Yy9gVS
+-----KONEC SIFRY-----

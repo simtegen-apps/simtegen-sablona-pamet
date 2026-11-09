@@ -1,42 +1,6 @@
-{
-  "repo": "simtegen-appka-pro-mechaniky-a-servisy-na-uskladn",
-  "den": "2026-10-05",
-  "zobrazeni_30d": 0,
-  "ucty_celkem": 3,
-  "ucty_nove_30d": 3,
-  "aktivni_7d": 1,
-  "aktivni_30d": 3,
-  "zkusebni": 3,
-  "predplatne_aktivni": 0,
-  "predplatne_vyprsele": 0,
-  "platby_30d": 0,
-  "platici_ucty": 0,
-  "ucty_s_druhou_platbou": 0,
-  "hlaseni_30d": 0,
-  "pouziti": {
-    "nastaveni_servisu": {
-      "celkem": 3,
-      "nove_30d": 3
-    },
-    "zakaznici": {
-      "celkem": 17,
-      "nove_30d": 17
-    },
-    "sady": {
-      "celkem": 29,
-      "nove_30d": 29
-    },
-    "pohyby": {
-      "celkem": 29,
-      "nove_30d": 29
-    },
-    "clenove": {
-      "celkem": 0,
-      "nove_30d": 0
-    },
-    "objednavky_predplatneho": {
-      "celkem": 1,
-      "nove_30d": 1
-    }
-  }
-}
+Metriky produktu. Sifrovane - cist je umi jen SimteGen.
+
+-----SIMTEGEN SIFRA v1-----
+pP04O8oJ18OVhDDyTfCjINZyf7Di3mcY5Hwt4yYa/02IZk0oB0IRLDnHT1UKplg3mt/W0X1BIfs++bUpXRknAv/2/48j0lLUXo7IMUziFQBkHOt/BRNaYEMDx8EVaCYHSPYQE2NPT85qzjO2ggnEhSJILoAz6V4Bf6TOsa+/iyISFGN/oxcXlWSQ+d1syLZpMM2HCmFRBfKnAKK6Nu71UJvkWFgv8UWqg+V5182TJI8F5GdwfMd5cjEwIM5+jIDG7rhPc/YfA7WfVfCHLHCVErJW9Wb3LEEz8JLURoefLBgacqkzbY9NEz0BLFUnsCodeIwTuvBDSzD55SLX0zo5ZCsqnIJNNKXUoEBU98o80MFDHrdz9thzxDTDlmXLc6/atEhkypZetrt7DpBzcMpMR5eSN7zknhjenFcmTuDHOJ8B4NcXGALsckHUd2GkkI0ylpny0TeoWbTfP2F9BTHrOHTsuLBk0VgbCLq6ugykuvLA1BdgaBlh6B7tXYp/0K4t
+Wfae9cImLwYkpXFbRpCdmq7N/dMM0dbA6khXoXZS/JBkwWakfko8tLxs3ac1kERshr/7vH2aPExvNDEKwtDMvjcuvGnkslBf4WmviJxSR8a1MwQTY+r5WndsnLfm3khPApLQQIWfHSWNgym9Di65r0F2r9EWnrx6bU5YyE5AFD36ketKeIQHDo1uoxVm3hS3kVi3RATJTRCCfJk013HaazGXMHIf+toTbP0uvi+u64vUWJD6sG9P87seL/9Uryw+GC6Yzkh2tjnTJ93tuTZGwPXwwkrsMxgPtne+vdLHeXsmdLfuA+ethzYj5DrCDPaajaTx9oEtfYjDiNlLYTh6kFTHndNAhKlw6/r7AwY77I8tyl5nYUVqpNr+FeUNsPZoKskEvybqGrWGqBcG/0auml6/Rf1mSPAx/xJuRQORclL/34mAsxE7ijUoSCHFwSDqfZf6gIsX5c4XB96/sUjE58DblrFoX9/TjAoJGnofn6YyLr9WLOz/fEIA44hDCaqZ
+-----KONEC SIFRY-----
