@@ -1,9 +1,9 @@
 {
- "oznaceni": "rucne-kusovnik-test",
+ "oznaceni": "rucne-pneusklad-konzole",
  "stav": "success",
- "balicek": "cz.simtegen.kusovnik",
- "verze": "2026.11.11.1852",
- "kod": 1505932,
+ "balicek": "cz.simtegen.pneusklad",
+ "verze": "2026.11.11.2107",
+ "kod": 1506067,
  "cilove_api": 36,
  "docasny_klic": false,
  "nahrano": true,
@@ -13,6 +13,6 @@
  "bezpecnost_dat": true,
  "nakupy": true,
  "predplatne_play": null,
- "run_url": "https://github.com/simtegen-apps/simtegen-sablona-pamet/actions/runs/43081540261",
- "cas": "2026-11-11T18:55:33+00:00"
+ "run_url": "https://github.com/simtegen-apps/simtegen-sablona-pamet/actions/runs/43100136106",
+ "cas": "2026-11-11T21:11:20+00:00"
 }
