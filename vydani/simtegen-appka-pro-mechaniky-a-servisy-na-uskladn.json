@@ -1,18 +1,18 @@
 {
- "oznaceni": "rucne-20261112215320-955e",
+ "oznaceni": "rucne-20261112221458-b01b",
  "stav": "success",
  "balicek": "cz.simtegen.pneusklad",
- "verze": "2026.11.12.2055",
- "kod": 1507495,
+ "verze": "2026.11.12.2116",
+ "kod": 1507516,
  "cilove_api": 36,
  "docasny_klic": false,
  "nahrano": true,
  "stav_play": "completed",
  "zaznam": true,
- "zaznam_play": false,
+ "zaznam_play": true,
  "bezpecnost_dat": true,
  "nakupy": true,
- "predplatne_play": false,
- "run_url": "https://github.com/simtegen-apps/simtegen-sablona-pamet/actions/runs/43304738652",
- "cas": "2026-11-12T20:58:35+00:00"
+ "predplatne_play": true,
+ "run_url": "https://github.com/simtegen-apps/simtegen-sablona-pamet/actions/runs/43308363538",
+ "cas": "2026-11-12T21:22:51+00:00"
 }
