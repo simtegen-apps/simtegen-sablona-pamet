@@ -1,18 +1,18 @@
 {
- "oznaceni": "rucne-20261112202509-dd81",
+ "oznaceni": "rucne-20261112223213-e2c2",
  "stav": "success",
  "balicek": "cz.simtegen.kusovnik",
- "verze": "2026.11.12.1927",
- "kod": 1507407,
+ "verze": "2026.11.12.2133",
+ "kod": 1507533,
  "cilove_api": 36,
  "docasny_klic": false,
  "nahrano": true,
  "stav_play": "completed",
  "zaznam": true,
- "zaznam_play": false,
+ "zaznam_play": true,
  "bezpecnost_dat": true,
  "nakupy": true,
- "predplatne_play": false,
- "run_url": "https://github.com/simtegen-apps/simtegen-sablona-pamet/actions/runs/43289960052",
- "cas": "2026-11-12T19:29:45+00:00"
+ "predplatne_play": true,
+ "run_url": "https://github.com/simtegen-apps/simtegen-sablona-pamet/actions/runs/43311210584",
+ "cas": "2026-11-12T21:36:15+00:00"
 }
