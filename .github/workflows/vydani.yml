@@ -1,0 +1,685 @@
+# Vydání Android aplikace produktu do Google Play: interní kanál vždy,
+# produkce sama, když se změnil obal aplikace a aplikace už v produkci je
+# (první vydání do produkce je klepnutí majitele v Play Console).
+#
+# Z čeho: z NASAZENÉHO webu produktu (manifest.webmanifest, ikony, balíček
+# v related_applications) — všechno to vyrábí vykresli_aplikaci.py v produktu.
+# Aplikace je Trusted Web Activity: Bubblewrap z webu udělá AAB bez řádku
+# nativního kódu.
+#
+# Proč tady a ne v repu produktu: workflow v produktech se nikdy neaktualizují
+# (token bota na ně nesmí), repo šablony dostane každý merge samo. Vstup
+# `projekt` = kterýkoli produkt. Stejný vzor jako Faktura a Platba.
+#
+# Tajemství (org secrets, zakládá majitel, nikdy SimteGen):
+#   PLAY_UPLOAD_KEYSTORE           upload klíč jako base64 (alias "upload")
+#   PLAY_UPLOAD_KEYSTORE_PASSWORD  heslo úložiště i klíče
+#   PLAY_SERVICE_ACCOUNT_JSON      servisní účet s rolí správce vydání
+#   PLAY_NAKUPY_SERVICE_ACCOUNT_JSON  druhý servisní účet JEN na objednávky
+#                                  a předplatné — dostane ho produkt, který
+#                                  v aplikaci prodává (ověří a potvrdí nákup)
+#   PLAY_PRODUKCE_SERVICE_ACCOUNT_JSON  třetí servisní účet JEN na produkci —
+#                                  NE org secret, ale secret prostředí
+#                                  `play-produkce` v tomhle repu (pustí jen
+#                                  běh z main); zapíná ho org proměnná
+#                                  PLAY_PRODUKCE=ano (vypínač je u majitele)
+# Bez upload klíče se aplikace podepíše dočasným klíčem a jen se uloží jako
+# artefakt (ověření, že se sestaví). Bez servisního účtu se nenahrává.
+# Úplně první verzi nové aplikace nahrává člověk ručně v Play Console —
+# Google API neznámý balíček odmítne; artefakt tohoto běhu je přesně ten soubor.
+#
+# Čtyři joby: `obchod` vykreslí záznam v obchodě z produktu (jeho kód, větev
+# ze vstupu) bez jediného tajemství; `vydej` podepíše a nahraje na interní
+# kanál — z produktu dostane jen hotové obrázky a texty, každé tajemství má
+# jen krok, který ho potřebuje; `produkce` povýší TUTÉŽ verzi do produkce
+# s vlastním účtem, bez upload klíče a bez kódu produktu (nový balíček
+# přinést neumí, jen posunout ten náš); `zapis` uloží výsledek pro SimteGen
+# — jediný job s právem zápisu. Běží jen z main.
+
+name: Vydani
+run-name: "Vydani ${{ inputs.projekt }} ${{ inputs.oznaceni }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      projekt:
+        description: "Název repa produktu"
+        required: true
+      domena:
+        description: "Vlastní doména produktu (prázdné = <projekt>.pages.dev)"
+        required: false
+        default: ""
+      poznamka:
+        description: "Co je nového (poznámka k vydání, česky)"
+        required: false
+        default: ""
+      oznaceni:
+        description: "Značka běhu — SimteGen podle ní běh najde"
+        required: false
+        default: ""
+      vetev:
+        description: "Větev repa produktu pro záznam v obchodě (prázdné = výchozí)"
+        required: false
+        default: ""
+      predplatne:
+        description: "Předplatné v aplikaci podle schválené ceny (JSON od SimteGenu; prázdné = nic)"
+        required: false
+        default: ""
+      podpis:
+        description: "Podpis SimteGenu (vyplňuje firma; ruční běh správce ho nepotřebuje)"
+        required: false
+        default: ""
+
+concurrency:
+  group: vydani-${{ inputs.projekt }}
+  cancel-in-progress: false
+
+env:
+  # One exact wrangler for every call (a SimteGen test keeps it equal
+  # everywhere); bump by hand to a release at least two weeks old.
+  WRANGLER: wrangler@3.114.17
+  # Exact Bubblewrap; part of the app's shell fingerprint (its version
+  # decides the target API level), so a bump is a new production release.
+  BUBBLEWRAP: "@bubblewrap/cli@1.27.0"
+
+jobs:
+  # Everything that touches the product's own code runs here, without a
+  # single secret: the store screenshots render the product, and for a
+  # product with a database vizualni_kontrola.py starts its API locally.
+  # The product branch is an input — whoever may dispatch this chooses it —
+  # so that code must never share a machine with the signing key. Only
+  # inert files (images, JSON, text) go on to the release job.
+  obchod:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    outputs:
+      zaznam: ${{ steps.obchod.outputs.zaznam }}
+    steps:
+      - name: Kontrola vstupu
+        env:
+          PROJEKT: ${{ inputs.projekt }}
+        run: |
+          [[ "$PROJEKT" =~ ^[A-Za-z0-9._-]+$ ]] || { echo "Neplatný název repa produktu."; exit 1; }
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The bot token may dispatch this, so a stolen token must not be
+      # enough: a run passes only with SimteGen's signature over every input
+      # (the product, its branch, the price…) or when a listed human started
+      # it (.github/nastroje/over_pokyn.py, from this repository's main).
+      - name: Over pokyn (podpis SimteGenu nebo spravce)
+        env:
+          PODPIS_KLIC: ${{ vars.SIMTEGEN_PODPIS }}
+          SPRAVCI: ${{ vars.SIMTEGEN_SPRAVCI }}
+          AKTER: ${{ github.triggering_actor }}
+          WORKFLOW: ${{ github.workflow }}
+          VSTUPY: ${{ toJSON(inputs) }}
+        run: python3 .github/nastroje/over_pokyn.py
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+
+      # The store listing comes from the product repo (public, readable
+      # without a token): texts from play/zaznam.json, generated from its
+      # manifest; phone screenshots and the feature graphic rendered from the
+      # product by the template's own vizualni_kontrola.py. A product built
+      # before the listing existed just skips it. play/co_je_noveho.txt (the
+      # release note) travels along as text.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ github.repository_owner }}/${{ inputs.projekt }}
+          ref: ${{ inputs.vetev }}
+          path: produkt
+          persist-credentials: false
+
+      - name: Zaznam v obchode (texty, snimky, grafika)
+        id: obchod
+        run: |
+          set -euo pipefail
+          podklady="$RUNNER_TEMP/podklady"
+          mkdir -p "$podklady/obchod" "$podklady/play"
+          [ -f produkt/play/co_je_noveho.txt ] && cp produkt/play/co_je_noveho.txt "$podklady/play/" || true
+          if [ ! -f produkt/play/zaznam.json ]; then
+            echo "Produkt nemá play/zaznam.json (modul aplikace z doby před záznamem) — záznam se přeskočí."
+            echo "0" > "$podklady/zaznam.txt"
+            echo "zaznam=0" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          python3 vizualni_kontrola.py --koren produkt --obchod "$podklady/obchod"
+          cp produkt/play/zaznam.json produkt/play/BEZPECNOST_DAT.md "$podklady/obchod/"
+          echo "1" > "$podklady/zaznam.txt"
+          echo "zaznam=1" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: podklady
+          path: ${{ runner.temp }}/podklady
+          retention-days: 1
+          if-no-files-found: error
+
+  # Signs and uploads. Runs nothing of the product's: the template's own
+  # tools (.github/nastroje, from this repository's checkout), Bubblewrap
+  # at an exact version, and the files the job above produced. Each secret
+  # lives only in the step that needs it.
+  vydej:
+    needs: obchod
+    # Always, so a failure still writes the result SimteGen waits for.
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    # Read only: the result goes to the metriky branch from `zapis`, so no
+    # job holding a key can also push.
+    permissions:
+      contents: read
+    outputs:
+      balicek: ${{ steps.priprava.outputs.balicek }}
+      verze: ${{ steps.priprava.outputs.verze }}
+      kod: ${{ steps.priprava.outputs.kod }}
+      otisk: ${{ steps.otisk.outputs.otisk }}
+      nahrano: ${{ steps.nahrani.outcome }}
+      stav: ${{ steps.nahrani.outputs.stav }}
+      poznamka_sha: ${{ steps.nahrani.outputs.poznamka_sha }}
+      vysledek_sha: ${{ steps.vysledek.outputs.sha }}
+      obchod_otisk: ${{ steps.nahrani.outputs.obchod_otisk }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The tools below come from the template's main, which the bot token
+      # can write; their hashes live here, in a workflow file it cannot
+      # (py ops/otisky_vydani.py rewrites them after a change).
+      - name: Over nastroje
+        run: |
+          sha256sum --check --strict <<'OTISKY'
+          4a6ada2c90f4d3ad2e9dc96d0c4730dd528dd43a7e901755692be480eab45598  .github/nastroje/over_pokyn.py
+          503197d8565f0e4219519ad35e96d98c630562eafc5b73ea925fca5f247407aa  .github/nastroje/vydani.py
+          19b5377296db550a1b568b7ad0321cbc6fec6d5af98a1ad12574cea1f3111be1  .github/nastroje/knihovny_play.txt
+          5ddbbe949e45c334f07c5130d6e90dcd6a7f1730d04b55c6bfb3130c8f8d7f19  .github/nastroje/bubblewrap.package.json
+          0214866024dc6a8f3b107832a947bef4dea16ccf83a43b95c2e5a9a0599198f4  .github/nastroje/bubblewrap.lock.json
+          OTISKY
+
+      # npm reads configuration from the working directory; none may come
+      # with the checkout, as in deploy.yml.
+      - name: Jen data z repozitare
+        run: |
+          set -euo pipefail
+          find . -path ./.git -prune -o \( -name node_modules -o -name .wrangler \) -prune -exec rm -rf {} +
+          find . -path ./.git -prune -o -type f \( -name .npmrc -o -name '.yarnrc*' -o -name package.json \
+            -o -name package-lock.json -o -name npm-shrinkwrap.json -o -name yarn.lock -o -name pnpm-lock.yaml \
+            -o -name .env -o -name '.env.*' -o -name '.dev.vars*' -o -name wrangler.toml \
+            -o -name wrangler.json -o -name wrangler.jsonc -o -name .nvmrc -o -name .node-version \) \
+            -exec rm -f {} +
+
+      # Checked again here: this job must not rely on the other one alone.
+      # The bot token may dispatch this, so a stolen token must not be
+      # enough: a run passes only with SimteGen's signature over every input
+      # (the product, its branch, the price…) or when a listed human started
+      # it (.github/nastroje/over_pokyn.py, from this repository's main).
+      - name: Over pokyn (podpis SimteGenu nebo spravce)
+        env:
+          PODPIS_KLIC: ${{ vars.SIMTEGEN_PODPIS }}
+          SPRAVCI: ${{ vars.SIMTEGEN_SPRAVCI }}
+          AKTER: ${{ github.triggering_actor }}
+          WORKFLOW: ${{ github.workflow }}
+          VSTUPY: ${{ toJSON(inputs) }}
+        run: python3 .github/nastroje/over_pokyn.py
+
+      - name: Podklady prosly
+        env:
+          VYSLEDEK: ${{ needs.obchod.result }}
+          PROJEKT: ${{ inputs.projekt }}
+        run: |
+          [[ "$PROJEKT" =~ ^[A-Za-z0-9._-]+$ ]] || { echo "Neplatný název repa produktu."; exit 1; }
+          if [ "$VYSLEDEK" != "success" ]; then
+            echo "Podklady pro obchod se nepovedly ($VYSLEDEK) — nic se nevydává. Důvod je v jobu obchod."
+            exit 1
+          fi
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20
+
+      # Bubblewrap checks the JDK major version; 17 is what it supports.
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+
+      - name: Priprava z nasazeneho webu
+        id: priprava
+        env:
+          PROJEKT: ${{ inputs.projekt }}
+          DOMENA: ${{ inputs.domena }}
+        run: python3 .github/nastroje/vydani.py priprav
+
+      # Fingerprint of the app's shell (TWA description without the version,
+      # Bubblewrap, icon bytes): `produkce` compares it with what production
+      # carries and releases only a shell that changed.
+      - name: Otisk obalu
+        id: otisk
+        run: python3 .github/nastroje/vydani.py otisk
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: podklady
+          path: ${{ runner.temp }}/podklady
+
+      # Files only: the listing into vydani/obchod (vydani.py reads it from
+      # there), the release note where vydani.py looks for the product's.
+      - name: Podklady do vydani
+        run: |
+          set -euo pipefail
+          podklady="$RUNNER_TEMP/podklady"
+          mkdir -p vydani/obchod produkt/play
+          cp -R "$podklady/obchod/." vydani/obchod/
+          [ -f "$podklady/play/co_je_noveho.txt" ] && cp "$podklady/play/co_je_noveho.txt" produkt/play/ || true
+
+      # The key and its password exist only in this step's environment. The
+      # password for the build goes to a file in the runner's temp folder
+      # (not $GITHUB_ENV, which every later step would inherit); the build
+      # step deletes it together with the keystore.
+      - name: Podpisovy klic
+        id: klic
+        env:
+          PLAY_UPLOAD_KEYSTORE: ${{ secrets.PLAY_UPLOAD_KEYSTORE }}
+          PLAY_UPLOAD_KEYSTORE_PASSWORD: ${{ secrets.PLAY_UPLOAD_KEYSTORE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          umask 077
+          if [ -n "$PLAY_UPLOAD_KEYSTORE" ] && [ -n "$PLAY_UPLOAD_KEYSTORE_PASSWORD" ]; then
+            printf '%s' "$PLAY_UPLOAD_KEYSTORE" | base64 -d > vydani/upload.keystore
+            heslo="$PLAY_UPLOAD_KEYSTORE_PASSWORD"
+            echo "docasny=0" >> "$GITHUB_OUTPUT"
+          else
+            # No upload key yet: prove the build with a throwaway key that dies
+            # with the runner. Such a bundle can never go to Play, by design.
+            heslo=$(openssl rand -hex 16)
+            echo "::add-mask::$heslo"
+            keytool -genkeypair -keystore vydani/upload.keystore -alias upload -keyalg RSA \
+              -keysize 2048 -validity 10000 -storepass "$heslo" -keypass "$heslo" \
+              -dname "CN=SimteGen docasny klic" > /dev/null
+            echo "docasny=1" >> "$GITHUB_OUTPUT"
+          fi
+          printf '%s' "$heslo" > "$RUNNER_TEMP/heslo-klice"
+          otisk=$(keytool -list -v -keystore vydani/upload.keystore -alias upload -storepass "$heslo" \
+            | sed -n 's/^[[:space:]]*SHA256:[[:space:]]*//p' | head -n 1)
+          echo "otisk=$otisk" >> "$GITHUB_OUTPUT"
+
+      - name: Sestaveni (Bubblewrap)
+        run: |
+          set -euo pipefail
+          trap 'rm -f "$RUNNER_TEMP/heslo-klice" "$GITHUB_WORKSPACE/vydani/upload.keystore"' EXIT
+          # The whole Bubblewrap tree from the lockfile (each package with its
+          # integrity hash, no install scripts): `npm install @x@1.2.3` pins
+          # only the top package, and Bubblewrap's own dependencies are open
+          # ranges — its core decides android-browser-helper and the Android
+          # Gradle plugin. Copied under the names npm wants: the cleanup above
+          # deletes package*.json from the checkout.
+          bw="$RUNNER_TEMP/bubblewrap"
+          mkdir -p "$bw"
+          cp .github/nastroje/bubblewrap.package.json "$bw/package.json"
+          cp .github/nastroje/bubblewrap.lock.json "$bw/package-lock.json"
+          (cd "$bw" && npm ci --ignore-scripts --silent --no-audit --no-fund)
+          export PATH="$bw/node_modules/.bin:$PATH"
+          ma=$(node -p "require('$bw/node_modules/@bubblewrap/cli/package.json').version")
+          [ "$ma" = "${BUBBLEWRAP##*@}" ] || { echo "Bubblewrap z lockfilu je $ma, ne $BUBBLEWRAP."; exit 1; }
+          BUBBLEWRAP_KEYSTORE_PASSWORD=$(cat "$RUNNER_TEMP/heslo-klice")
+          BUBBLEWRAP_KEY_PASSWORD="$BUBBLEWRAP_KEYSTORE_PASSWORD"
+          export BUBBLEWRAP_KEYSTORE_PASSWORD BUBBLEWRAP_KEY_PASSWORD
+          # Bubblewrap insists on the old SDK layout with a `tools` folder,
+          # which current runner images no longer have ("The provided
+          # androidSdk isn't correct"). So it gets its own SDK folder: links to
+          # the runner's parts, `tools` pointing at cmdline-tools/latest,
+          # nothing of the runner's touched. Gradle then refuses two different
+          # SDK paths in the environment, so the runner's ANDROID_SDK_ROOT goes
+          # and ANDROID_HOME names the new folder.
+          sdk="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          moje_sdk="$HOME/android-sdk"
+          mkdir -p "$moje_sdk"
+          for cast in "$sdk"/*; do ln -sfn "$cast" "$moje_sdk/$(basename "$cast")"; done
+          ln -sfn "$sdk/cmdline-tools/latest" "$moje_sdk/tools"
+          unset ANDROID_SDK_ROOT
+          export ANDROID_HOME="$moje_sdk"
+          echo "Android SDK: $moje_sdk (z $sdk)"
+          mkdir -p ~/.bubblewrap
+          printf '{"jdkPath":"%s","androidSdkPath":"%s"}' "$JAVA_HOME" "$moje_sdk" > ~/.bubblewrap/config.json
+          cd vydani
+          # Passwords come from the environment. `update` writes the project and
+          # its checksum, so `build` has nothing to ask; stdin still answers yes
+          # to any confirmation a newer Bubblewrap might add. Fed by process
+          # substitution, not a pipe: under pipefail a pipe would fail the step
+          # with yes's SIGPIPE after a perfectly good build.
+          bubblewrap update --skipVersionUpgrade --manifest=./twa-manifest.json < <(yes)
+          # The project names its Gradle without a checksum; pin it.
+          (cd .. && python3 .github/nastroje/vydani.py gradle)
+          bubblewrap build --skipPwaValidation --manifest=./twa-manifest.json < <(yes)
+          ls -l app-release-bundle.aab
+
+      - name: Navod pro prvni vydani
+        run: python3 .github/nastroje/vydani.py navod
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: aplikace-${{ inputs.projekt }}-${{ steps.priprava.outputs.kod }}
+          path: |
+            vydani/app-release-bundle.aab
+            vydani/app-release-signed.apk
+            vydani/twa-manifest.json
+            vydani/obchod/
+          retention-days: 30
+          if-no-files-found: error
+
+      # A product that sells in the app verifies and acknowledges purchases
+      # itself, with the order-only key (never the release key above). Set
+      # on every release, so a rotated key reaches every product; Cloudflare
+      # applies it from the product's next deploy.
+      - name: Klic pro nakupy v aplikaci
+        id: nakupy
+        if: steps.priprava.outputs.nakupy == '1'
+        env:
+          PLAY_NAKUPY: ${{ secrets.PLAY_NAKUPY_SERVICE_ACCOUNT_JSON }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PROJEKT: ${{ inputs.projekt }}
+          BALICEK: ${{ steps.priprava.outputs.balicek }}
+        run: |
+          set -euo pipefail
+          if [ -z "$PLAY_NAKUPY" ] || [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "Chybí org secret PLAY_NAKUPY_SERVICE_ACCOUNT_JSON (nebo Cloudflare) — produkt nákupy zatím neověří."
+            echo "klic=0" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          printf '%s' "$PLAY_NAKUPY" | npx --yes "$WRANGLER" pages secret put PLAY_NAKUPY_UCET --project-name "$PROJEKT" > /dev/null
+          printf '%s' "$BALICEK" | npx --yes "$WRANGLER" pages secret put PLAY_BALICEK --project-name "$PROJEKT" > /dev/null
+          echo "klic=1" >> "$GITHUB_OUTPUT"
+
+      - name: Servisni ucet
+        id: ucet
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          if [ -n "$PLAY_SERVICE_ACCOUNT_JSON" ]; then echo "ma=1" >> "$GITHUB_OUTPUT"; else echo "ma=0" >> "$GITHUB_OUTPUT"; fi
+
+      # The fingerprint of the product's screens at the last listing upload
+      # (zapis keeps it in the metriky branch): the pictures go up again only
+      # when the screens changed — every listing change of a live app is
+      # reviewed by Google. Read with this job's read-only token; a wrong
+      # value can only cause one upload too many or one skipped.
+      - name: Predchozi otisk obchodu
+        id: predchozi
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO_FULL: ${{ github.repository }}
+          PROJEKT: ${{ inputs.projekt }}
+        run: |
+          set -euo pipefail
+          otisk=$(curl -sf -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github.raw" \
+            "https://api.github.com/repos/$REPO_FULL/contents/obchod/$PROJEKT.json?ref=metriky" \
+            | jq -r '.otisk // ""' 2>/dev/null || true)
+          [[ "$otisk" =~ ^[0-9a-f]{64}$ ]] || otisk=""
+          echo "otisk=${otisk}" >> "$GITHUB_OUTPUT"
+
+      - name: Nahrani na interni kanal
+        id: nahrani
+        if: steps.ucet.outputs.ma == '1' && steps.klic.outputs.docasny == '0'
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          POZNAMKA: ${{ inputs.poznamka }}
+          PREDPLATNE: ${{ inputs.predplatne }}
+          PREDCHOZI_OTISK_OBCHODU: ${{ steps.predchozi.outputs.otisk }}
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet --disable-pip-version-check --require-hashes -r .github/nastroje/knihovny_play.txt
+          python3 .github/nastroje/vydani.py nahraj vydani/app-release-bundle.aab
+
+      # Inputs and outputs only through env: an input pasted into the
+      # script would run as shell.
+      - name: Shrnuti
+        if: always()
+        env:
+          DOCASNY: ${{ steps.klic.outputs.docasny }}
+          ZAZNAM: ${{ needs.obchod.outputs.zaznam }}
+          PROJEKT: ${{ inputs.projekt }}
+          BALICEK: ${{ steps.priprava.outputs.balicek }}
+          VERZE: ${{ steps.priprava.outputs.verze }}
+          KOD: ${{ steps.priprava.outputs.kod }}
+          OTISK: ${{ steps.klic.outputs.otisk }}
+          NAHRANO: ${{ steps.nahrani.outcome }}
+          STAV: ${{ steps.nahrani.outputs.stav }}
+          BEZPECNOST: ${{ steps.nahrani.outputs.bezpecnost }}
+          ZAZNAM_PLAY: ${{ steps.nahrani.outputs.zaznam_play }}
+          NAKUPY: ${{ steps.priprava.outputs.nakupy }}
+          KLIC: ${{ steps.nakupy.outputs.klic }}
+          PREDPLATNE_PLAY: ${{ steps.nahrani.outputs.predplatne }}
+        run: |
+          {
+            echo "### Vydání $PROJEKT"
+            echo "- Balíček: \`$BALICEK\`, verze $VERZE (kód $KOD)"
+            if [ "$ZAZNAM" = "1" ]; then
+              echo "- Záznam v obchodě: texty, snímky a grafika jsou v artefaktu (\`obchod/\`); Bezpečnost údajů se vyplní sama, ostatní prohlášení jsou v \`obchod/BEZPECNOST_DAT.md\`."
+            else
+              echo "- Záznam v obchodě: produkt ho ještě nemá (vznikne s jeho příští stavbou)."
+            fi
+            if [ "$DOCASNY" = "1" ]; then
+              echo "- Podepsáno **dočasným** klíčem — jen ověření sestavení, do Google Play to nejde. Chybí org secrets PLAY_UPLOAD_KEYSTORE a PLAY_UPLOAD_KEYSTORE_PASSWORD."
+            else
+              echo "- SHA-256 upload klíče: \`$OTISK\`"
+            fi
+            if [ "$NAHRANO" = "success" ] && [ "$STAV" = "neznama" ]; then
+              echo "- Google Play aplikaci **zatím nezná** — první verzi nahraj ručně v Play Console (Interní testování → Vytvořit vydání → \`app-release-bundle.aab\` z artefaktu). Další vydání už půjdou sama."
+            elif [ "$NAHRANO" = "success" ]; then
+              echo "- Google Play: nahráno na interní kanál (${STAV:-completed}). Do produkce jde samo (job produkce), když se změnil obal aplikace a aplikace už v produkci je."
+              if [ "$ZAZNAM_PLAY" = "1" ]; then
+                echo "- Záznam v obchodě: aktuální v Google Play (česky, a anglicky, má-li produkt angličtinu). Nahrálo se jen to, co se změnilo — seznam je v logu kroku Nahrani."
+              elif [ "$ZAZNAM_PLAY" = "0" ]; then
+                echo "- Záznam v obchodě: Google ho **nepřijal** — v logu kroku Nahrani je důvod i oprávnění, které servisnímu účtu chybí; vydání tím neutrpělo."
+              fi
+              if [ "$BEZPECNOST" = "1" ]; then
+                echo "- Bezpečnost údajů: formulář vyplněn z manifestu (\`obchod/bezpecnost_dat.csv\`)."
+              elif [ "$BEZPECNOST" = "0" ]; then
+                echo "- Bezpečnost údajů: Google formulář **nepřijal** — důvod je v logu kroku Nahrani; vydání tím neutrpělo."
+              fi
+              if [ "$PREDPLATNE_PLAY" = "1" ]; then
+                echo "- Předplatné v Google Play: nastavené podle schválené ceny (podrobnosti v logu kroku Nahrani)."
+              elif [ "$PREDPLATNE_PLAY" = "0" ]; then
+                echo "- Předplatné v Google Play: Google ho **nepřijal** — nejčastěji chybí platební profil v Play Console; důvod je v logu kroku Nahrani."
+              fi
+            elif [ "$NAHRANO" = "skipped" ]; then
+              echo "- Google Play: nenahráno (chybí servisní účet nebo upload klíč). Soubor .aab je v artefaktu."
+            else
+              echo "- Google Play: nahrání selhalo — důvod je v logu kroku Nahrani."
+            fi
+            if [ "$NAKUPY" = "1" ]; then
+              if [ "$KLIC" = "1" ]; then
+                echo "- Nákupy v aplikaci: zapnuté (Play Billing), produkt má klíč na ověřování nákupů."
+              else
+                echo "- Nákupy v aplikaci: zapnuté (Play Billing), ale chybí org secret **PLAY_NAKUPY_SERVICE_ACCOUNT_JSON** — nákupy zatím nejdou ověřit."
+              fi
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # The result is written here (the built project tells the target API)
+      # and handed to `zapis` as an artifact: this job holds keys, so it
+      # cannot push. Always, also after a failure: otherwise SimteGen waits
+      # for a release that never comes.
+      - name: Vysledek
+        id: vysledek
+        if: always()
+        env:
+          OZNACENI: ${{ inputs.oznaceni }}
+          STAV: ${{ job.status }}
+          DOCASNY: ${{ steps.klic.outputs.docasny }}
+          ZAZNAM: ${{ needs.obchod.outputs.zaznam }}
+          NAHRANO: ${{ steps.nahrani.outcome }}
+          STAV_PLAY: ${{ steps.nahrani.outputs.stav }}
+          BEZPECNOST: ${{ steps.nahrani.outputs.bezpecnost }}
+          ZAZNAM_PLAY: ${{ steps.nahrani.outputs.zaznam_play }}
+          NAKUPY: ${{ steps.priprava.outputs.nakupy }}
+          PREDPLATNE_PLAY: ${{ steps.nahrani.outputs.predplatne }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          mkdir -p vydani
+          python3 .github/nastroje/vydani.py vysledek
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: vysledek
+          path: vydani/vysledek.json
+          retention-days: 1
+          if-no-files-found: warn
+
+  # Production: the same version code, promoted. Its key is a secret of the
+  # `play-produkce` environment (runs from main only), it has no upload key
+  # and never sees the product's code — Google takes only bundles signed
+  # with the upload key, so this job can move what `vydej` built, nothing
+  # else. Skipped unless the owner's switch (org variable PLAY_PRODUKCE)
+  # says ano and the run releases the product's main (no branch).
+  produkce:
+    needs: vydej
+    if: >-
+      ${{ !cancelled() && github.ref == 'refs/heads/main' && needs.vydej.result == 'success'
+      && needs.vydej.outputs.nahrano == 'success' && needs.vydej.outputs.stav == 'completed'
+      && vars.PLAY_PRODUKCE == 'ano' && inputs.vetev == '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: play-produkce
+    permissions:
+      contents: read
+    outputs:
+      stav: ${{ steps.povyseni.outputs.stav }}
+      duvod: ${{ steps.povyseni.outputs.duvod }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The tools below come from the template's main, which the bot token
+      # can write; their hashes live here, in a workflow file it cannot
+      # (py ops/otisky_vydani.py rewrites them after a change).
+      - name: Over nastroje
+        run: |
+          sha256sum --check --strict <<'OTISKY'
+          4a6ada2c90f4d3ad2e9dc96d0c4730dd528dd43a7e901755692be480eab45598  .github/nastroje/over_pokyn.py
+          503197d8565f0e4219519ad35e96d98c630562eafc5b73ea925fca5f247407aa  .github/nastroje/vydani.py
+          19b5377296db550a1b568b7ad0321cbc6fec6d5af98a1ad12574cea1f3111be1  .github/nastroje/knihovny_play.txt
+          OTISKY
+
+      # Checked once more: this job must not rely on the others. Strict:
+      # no "signature not set up yet" pass where the production key waits.
+      - name: Over pokyn (podpis SimteGenu nebo spravce)
+        env:
+          PRISNE: "1"
+          PODPIS_KLIC: ${{ vars.SIMTEGEN_PODPIS }}
+          SPRAVCI: ${{ vars.SIMTEGEN_SPRAVCI }}
+          AKTER: ${{ github.triggering_actor }}
+          WORKFLOW: ${{ github.workflow }}
+          VSTUPY: ${{ toJSON(inputs) }}
+        run: python3 .github/nastroje/over_pokyn.py
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+
+      # Before the key exists in any step: hash-pinned wheels only.
+      - name: Knihovny pro Play
+        run: |
+          python3 -m pip install --quiet --disable-pip-version-check --only-binary :all: --require-hashes -r .github/nastroje/knihovny_play.txt
+
+      - name: Povyseni do produkce
+        id: povyseni
+        env:
+          PLAY_PRODUKCE_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_PRODUKCE_SERVICE_ACCOUNT_JSON }}
+          PROJEKT: ${{ inputs.projekt }}
+          DOMENA: ${{ inputs.domena }}
+          BALICEK: ${{ needs.vydej.outputs.balicek }}
+          KOD: ${{ needs.vydej.outputs.kod }}
+          VERZE: ${{ needs.vydej.outputs.verze }}
+          OTISK: ${{ needs.vydej.outputs.otisk }}
+          POZNAMKA_SHA: ${{ needs.vydej.outputs.poznamka_sha }}
+        run: python3 .github/nastroje/vydani.py povys
+
+      - name: Shrnuti produkce
+        if: always()
+        env:
+          STAV: ${{ steps.povyseni.outputs.stav }}
+          DUVOD: ${{ steps.povyseni.outputs.duvod }}
+        run: |
+          echo "- Produkce (${STAV:-nebězela}): ${DUVOD:-důvod je v logu kroku Povyseni}" >> "$GITHUB_STEP_SUMMARY"
+
+  # The only job allowed to write: the result file in the template's metriky
+  # branch, which SimteGen reads back (the same channel as the metrics).
+  # No key, no product code.
+  zapis:
+    needs: [vydej, produkce]
+    if: ${{ always() && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        continue-on-error: true
+        with:
+          name: vysledek
+          path: vydani
+
+      - name: Uloz vysledek pro SimteGen
+        env:
+          PROJEKT: ${{ inputs.projekt }}
+          OZNACENI: ${{ inputs.oznaceni }}
+          STAV_VYDEJ: ${{ needs.vydej.result }}
+          VYSLEDEK_SHA: ${{ needs.vydej.outputs.vysledek_sha }}
+          OBCHOD_OTISK: ${{ needs.vydej.outputs.obchod_otisk }}
+          PRODUKCE: ${{ needs.produkce.outputs.stav }}
+          PRODUKCE_DUVOD: ${{ needs.produkce.outputs.duvod }}
+          PRODUKCE_JOB: ${{ needs.produkce.result }}
+          PRODUKCE_ZAPNUTO: ${{ vars.PLAY_PRODUKCE }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          GH_TOKEN: ${{ github.token }}
+          REPO_FULL: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          [[ "$PROJEKT" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || { echo "Neplatný název repa produktu."; exit 1; }
+          mkdir -p vydani
+          python3 .github/nastroje/vydani.py zapis
+          git config --global user.name "SimteGen vydani"
+          git config --global user.email "simtegen@users.noreply.github.com"
+          git clone -q --depth 1 --branch metriky "https://x-access-token:${GH_TOKEN}@github.com/${REPO_FULL}.git" vetev 2>/dev/null || {
+            mkdir vetev && git -C vetev init -q -b metriky
+            git -C vetev remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${REPO_FULL}.git"
+          }
+          mkdir -p vetev/vydani
+          cp vydani/vysledek.json "vetev/vydani/${PROJEKT}.json"
+          if [ -f vydani/obchod.json ]; then
+            mkdir -p vetev/obchod
+            cp vydani/obchod.json "vetev/obchod/${PROJEKT}.json"
+          fi
+          git -C vetev add -A
+          git -C vetev commit -q -m "vydani ${PROJEKT} ${OZNACENI}" || { echo "beze zmeny"; exit 0; }
+          # Metriky and Play write the same branch; on a race, rebase and retry.
+          for pokus in 1 2 3; do
+            git -C vetev push -q origin metriky && exit 0
+            git -C vetev pull -q --rebase origin metriky || true
+          done
+          echo "Výsledek se do větve metriky nepodařilo zapsat."
+          exit 1

@@ -1,0 +1,36 @@
+# Template for the real wrangler.toml, which CI generates on every deploy
+# (see .github/workflows/deploy.yml). Generated and not committed because the
+# D1 database ids are per-product and only exist after the databases do —
+# committing them would either leak across products generated from this
+# template, or require a human step this pipeline exists to remove.
+#
+# Placeholders: __PROJEKT__ (repo name), __DB_ID__ (production database id),
+# __DB_NAHLED_ID__ (preview database id).
+
+name = "__PROJEKT__"
+pages_build_output_dir = "web"
+compatibility_date = "2025-06-01"
+
+# Production bindings live top-level; preview deployments (build/* branches)
+# get their own database so testing a pull request can never touch customer
+# data.
+[[d1_databases]]
+binding = "DB"
+database_name = "__PROJEKT__-db"
+database_id = "__DB_ID__"
+migrations_dir = "db/migrace"
+
+[env.preview]
+
+[[env.preview.d1_databases]]
+binding = "DB"
+database_name = "__PROJEKT__-db-nahled"
+database_id = "__DB_NAHLED_ID__"
+migrations_dir = "db/migrace"
+
+# Development mode (functions/api/prihlaseni.js, ochrana.js): the login link
+# comes back in the response, which is what reviewing a build branch needs.
+# Only here — production has no VYVOJ and never hands out a link, even if
+# the mail settings go missing (then login answers 503).
+[env.preview.vars]
+VYVOJ = "ano"

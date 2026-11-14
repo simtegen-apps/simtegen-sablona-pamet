@@ -1,0 +1,127 @@
+# Faktura k objednávce. Spouští ji SimteGen (firma) hned, jak v repu produktu
+# přibude issue „Objednávka #N“: číslo a částku přidělí sám (jedna číselná
+# řada firmy), tady se z databáze produktu vezmou fakturační údaje, vykreslí
+# PDF s QR platbou, pošle zákazníkovi (kopie na kontaktní e-mail firmy =
+# účetní archiv) a objednávka se označí jako fakturovaná.
+#
+# Proč tady a ne v repu produktu: workflow soubory v produktech se nikdy
+# neaktualizují (token bota na ně nesmí), repo šablony dostane každý merge
+# samo. Vstup `projekt` = kterýkoli produkt, i starší. Stejný vzor jako
+# Predplatne. Ručně jde spustit také (Actions → Faktura → Run workflow).
+#
+# run-name nese číslo faktury: SimteGen podle něj běh najde (dispatch žádné
+# id nevrací) a majiteli řekne, jestli faktura odešla.
+
+name: Faktura
+run-name: "Faktura ${{ inputs.cislo }} (${{ inputs.projekt }})"
+
+on:
+  workflow_dispatch:
+    inputs:
+      projekt:
+        description: "Název repa produktu"
+        required: true
+      objednavka:
+        description: "Id objednávky v databázi produktu"
+        required: true
+      cislo:
+        description: "Číslo faktury (přiděluje SimteGen)"
+        required: true
+      castka_czk:
+        description: "Celková částka v Kč (celé číslo)"
+        required: true
+      mesice:
+        description: "Počet měsíců předplatného"
+        required: true
+      vystaveno:
+        description: "Datum vystavení YYYY-MM-DD"
+        required: true
+      splatnost:
+        description: "Datum splatnosti YYYY-MM-DD"
+        required: true
+      dodavatel:
+        description: "JSON: nazev, ico, dic, sidlo, zapis_or, email, ucet, dph_sazba"
+        required: true
+      popis:
+        description: "Text položky na faktuře"
+        required: true
+      podpis:
+        description: "Podpis SimteGenu (vyplňuje firma; ruční běh správce ho nepotřebuje)"
+        required: false
+        default: ""
+
+# Least privilege: the job only checks out this repository.
+permissions:
+  contents: read
+
+# One invoice at a time per product: two orders in the same minute must
+# not race on the same order row.
+concurrency:
+  group: faktura-${{ inputs.projekt }}
+  cancel-in-progress: false
+
+env:
+  # One exact wrangler for every call (a SimteGen test keeps it equal
+  # everywhere); bump by hand to a release at least two weeks old.
+  WRANGLER: wrangler@3.114.17
+
+jobs:
+  vystav:
+    # Only from main. The workflow file is the same on every branch (the
+    # bot token may not touch workflows), the scripts it runs are not: a
+    # branch pushed with a stolen token could carry its own .github/nastroje
+    # (over_pokyn.py included) next to these secrets.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # The bot token may dispatch this, so a stolen token must not be
+      # enough: a run passes only with SimteGen's signature or when a listed
+      # human started it (.github/nastroje/over_pokyn.py).
+      - name: Over pokyn (podpis SimteGenu nebo spravce)
+        env:
+          PODPIS_KLIC: ${{ vars.SIMTEGEN_PODPIS }}
+          SPRAVCI: ${{ vars.SIMTEGEN_SPRAVCI }}
+          AKTER: ${{ github.triggering_actor }}
+          WORKFLOW: ${{ github.workflow }}
+          VSTUPY: ${{ toJSON(inputs) }}
+        run: python3 .github/nastroje/over_pokyn.py
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+
+      - name: Knihovny a fonty
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet --disable-pip-version-check --require-hashes -r .github/nastroje/knihovny_faktura.txt
+          if [ ! -f /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf ]; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq fonts-dejavu-core
+          fi
+
+      - name: Vystav a odesli fakturu
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          EMAIL_ODESILATEL: ${{ vars.EMAIL_ODESILATEL }}
+          PROJEKT: ${{ inputs.projekt }}
+          OBJEDNAVKA: ${{ inputs.objednavka }}
+          CISLO: ${{ inputs.cislo }}
+          CASTKA_CZK: ${{ inputs.castka_czk }}
+          MESICE: ${{ inputs.mesice }}
+          VYSTAVENO: ${{ inputs.vystaveno }}
+          SPLATNOST: ${{ inputs.splatnost }}
+          DODAVATEL: ${{ inputs.dodavatel }}
+          POPIS: ${{ inputs.popis }}
+        run: python3 .github/nastroje/faktura.py
+
+      # No artifact upload, on purpose. This runs in the public template repo,
+      # and a public repo's artifacts can be downloaded by any signed-in
+      # GitHub user — the invoice carries the customer's name, address and
+      # e-mail. The accounting archive (the e-mail copy) is the only copy.

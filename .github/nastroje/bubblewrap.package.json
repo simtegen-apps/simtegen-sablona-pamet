@@ -1,0 +1,7 @@
+{
+  "name": "simtegen-bubblewrap",
+  "private": true,
+  "dependencies": {
+    "@bubblewrap/cli": "1.27.0"
+  }
+}

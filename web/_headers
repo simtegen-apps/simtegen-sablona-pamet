@@ -1,0 +1,27 @@
+# simtegen-hlavicky — ze šablony, NEUPRAVOVAT V PRODUKTU (stavba ho obnoví).
+#
+# Cache-Control: no-cache — prohlížeč si styl a skript uloží, ale před použitím
+# se zeptá (ETag → 304). Bez toho dávala zóna Cloudflare stylům a skriptům
+# 4 hodiny: nová stránka se starým styl.css / simtegen.js (web firmy 6. 11. 2026).
+#
+# Strict-Transport-Security: prohlížeč, který stránku jednou viděl, už nikdy
+# nezkusí http:// — ani na podvržené Wi-Fi, kde by první nešifrovaný požadavek
+# šel přesměrovat jinam (Cloudflare Security Center: „Domains without HSTS“,
+# Pneusklad a Kusovník, 7. 11. 2026). Rok, včetně poddomén; bez preload —
+# ten se nedá rychle vzít zpět.
+#
+# Content-Security-Policy je druhá zeď za kontrolou sítě v CI: i kdyby se
+# do stránky dostal cizí skript, prohlížeč nepošle data jinam než na vlastní
+# /api/ (connect-src 'self'), nenačte cizí skript ani písmo a stránku nikdo
+# nevloží do rámu. Inline skripty a styly zůstávají povolené — stránky
+# postavené stavitelem je mají (bezpečnostní kontrola je vypisuje jako
+# upozornění), Cloudflare na živé doméně vkládá vlastní inline skript
+# (/cdn-cgi/challenge-platform) a vkládání HTML z dat hlídá bezpečnostní
+# kontrola.
+/*
+  Cache-Control: no-cache
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; manifest-src 'self'; worker-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(self), microphone=(), geolocation=(self), payment=()

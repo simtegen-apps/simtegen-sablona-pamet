@@ -1,0 +1,71 @@
+# Odpověď na recenzi v Google Play — veřejně, jménem firmy.
+#
+# Spouští ho SimteGen, až majitel přes ARGA řekne, co odpovědět. Odpověď je
+# veřejná a nese jméno firmy, takže ji token bota sám poslat nesmí: první
+# krok pustí běh jen s podpisem SimteGenu (nebo když ho ručně spustí
+# správce ze SIMTEGEN_SPRAVCI) — stejně jako Faktura a Platba.
+
+name: Play odpoved
+run-name: "Odpoved recenze ${{ inputs.recenze }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      balicek:
+        description: "Balíček aplikace v Google Play"
+        required: true
+      recenze:
+        description: "Id recenze (reviewId)"
+        required: true
+      text:
+        description: "Text odpovědi (nejvýš 350 znaků, česky, vykat)"
+        required: true
+      podpis:
+        description: "Podpis SimteGenu (vyplňuje firma; ruční běh správce ho nepotřebuje)"
+        required: false
+        default: ""
+
+# Least privilege: the job only checks out this repository.
+permissions:
+  contents: read
+
+jobs:
+  odpovez:
+    # Only from main. The workflow file is the same on every branch (the
+    # bot token may not touch workflows), the scripts it runs are not: a
+    # branch pushed with a stolen token could carry its own .github/nastroje
+    # (over_pokyn.py included) next to these secrets.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # A clean toolcache Python: pinned, hash-checked libraries install into
+      # it without touching (or tripping over) the runner's system packages.
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+
+      - name: Over pokyn (podpis SimteGenu nebo spravce)
+        env:
+          PODPIS_KLIC: ${{ vars.SIMTEGEN_PODPIS }}
+          SPRAVCI: ${{ vars.SIMTEGEN_SPRAVCI }}
+          AKTER: ${{ github.triggering_actor }}
+          WORKFLOW: ${{ github.workflow }}
+          VSTUPY: ${{ toJSON(inputs) }}
+        run: python3 .github/nastroje/over_pokyn.py
+
+      - name: Odesli odpoved
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          BALICEK: ${{ inputs.balicek }}
+          RECENZE: ${{ inputs.recenze }}
+          TEXT: ${{ inputs.text }}
+        run: |
+          set -euo pipefail
+          if [ -z "$PLAY_SERVICE_ACCOUNT_JSON" ]; then
+            echo "Chybí org secret PLAY_SERVICE_ACCOUNT_JSON — odpověď nejde poslat."
+            exit 1
+          fi
+          python3 -m pip install --quiet --disable-pip-version-check --require-hashes -r .github/nastroje/knihovny_play.txt
+          python3 .github/nastroje/play.py odpovez

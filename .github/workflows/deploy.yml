@@ -1,0 +1,271 @@
+# Nasazení na Cloudflare Pages + D1 (šablona s pamětí).
+#
+# Push do main = produkce (https://<repo>.pages.dev), push větve build/* =
+# preview (https://<větev>.<repo>.pages.dev) s VLASTNÍ databází <repo>-db-nahled
+# — test PR se nikdy nedotkne zákaznických dat. Merge dělá výhradně člověk;
+# SimteGen na tenhle soubor nesahá — jeho token nemá právo na workflow
+# soubory a GitHub takový push odmítne celý.
+#
+# Org-level secrets: CLOUDFLARE_API_TOKEN (Pages:Edit + D1:Edit),
+# CLOUDFLARE_ACCOUNT_ID. Volitelně RESEND_API_KEY (secret) a EMAIL_ODESILATEL
+# (variable) — bez nich běží přihlášení ve vývojovém režimu (odkaz v odpovědi)
+# a produkce se skutečnými zákazníky se nesmí spustit.
+#
+# Two jobs, on purpose. `kontrola` runs the repository's own Python (the
+# manifest, design, security and acceptance checks) and holds no secret at
+# all. `deploy` holds the Cloudflare token and runs nothing from the
+# repository: a fresh runner, the repository's files used only as data
+# (web/ and functions/ uploaded to Cloudflare, SQL migrations, the manifest
+# read by jq), wrangler at an exact version installed outside the checkout,
+# and wrangler.toml written from this file. Steps of one job share a
+# machine — whatever a check leaves behind (PATH, environment, npm config,
+# files) would otherwise reach the step that holds the token.
+
+name: Nasazeni
+
+on:
+  push:
+    branches:
+      - main
+      - "build/**"
+
+# Nothing here writes to GitHub; each job asks only to read the code.
+permissions: {}
+
+env:
+  # One exact wrangler for every call. Dependabot does not see it (not an
+  # npm manifest): bump it by hand together with WRANGLER in uat_kontrola.py
+  # and the other workflows (a SimteGen test keeps them equal), always to a
+  # release at least two weeks old.
+  WRANGLER: wrangler@3.114.17
+
+jobs:
+  kontrola:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # SIMTEGEN_PODPIS is a public key (an organisation variable, not a
+      # secret): the owner's signed approval of a destructive migration is
+      # verified against it (kontrola_migraci.py).
+      - name: Kontrola manifestu proti kodu
+        env:
+          SIMTEGEN_PODPIS: ${{ vars.SIMTEGEN_PODPIS }}
+        run: python3 kontrola_manifestu.py
+
+  # The job name is the ruleset's required status check (github.py
+  # POVINNA_KONTROLA) — do not rename it. A job skipped because its `needs`
+  # failed counts as passed for a required check, so this one always starts
+  # and turns red itself when the checks did not pass.
+  deploy:
+    needs: kontrola
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Kontrola prosla
+        env:
+          VYSLEDEK: ${{ needs.kontrola.result }}
+        run: |
+          if [ "$VYSLEDEK" != "success" ]; then
+            echo "Kontrola produktu neprošla ($VYSLEDEK) — nic se nenasazuje. Důvod je v jobu kontrola."
+            exit 1
+          fi
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Org secrets on the Free plan reach only PUBLIC repositories. Without
+      # this guard a private repo fails three steps later with wrangler's
+      # generic "set CLOUDFLARE_API_TOKEN" — true, but pointing nowhere.
+      - name: Kontrola secrets
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "Org secrets CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID nejsou v tomto repu dostupne."
+            echo "Nejcastejsi pricina: repo je Private — org secrets na Free planu plati jen pro Public repa."
+            echo "Prepni Settings -> General -> Visibility na Public a spust workflow znovu."
+            exit 1
+          fi
+
+      # npm and wrangler read configuration from the working directory
+      # (.npmrc, package.json, node_modules, .env, wrangler.toml). Here those
+      # would be whatever the branch carries, so they go before any tool
+      # runs: the deploy is configured by this file alone.
+      - name: Jen data z repozitare
+        run: |
+          set -euo pipefail
+          find . -path ./.git -prune -o \( -name node_modules -o -name .wrangler \) -prune -exec rm -rf {} +
+          find . -path ./.git -prune -o -type f \( -name .npmrc -o -name '.yarnrc*' -o -name package.json \
+            -o -name package-lock.json -o -name npm-shrinkwrap.json -o -name yarn.lock -o -name pnpm-lock.yaml \
+            -o -name .env -o -name '.env.*' -o -name '.dev.vars*' -o -name wrangler.toml \
+            -o -name wrangler.json -o -name wrangler.jsonc -o -name .nvmrc -o -name .node-version \) \
+            -exec rm -f {} +
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20
+
+      # Outside the checkout and without install scripts: nothing from the
+      # repository takes part in the install.
+      - name: Wrangler
+        working-directory: ${{ runner.temp }}
+        run: npm install --global --ignore-scripts --no-audit --no-fund "$WRANGLER"
+
+      # Projekt se jmenuje po repozitari. Create je idempotentni diky
+      # "|| true" — kdyz projekt existuje, wrangler si postezuje a jede se dal.
+      - name: Zajisti Pages projekt
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PROJECT: ${{ github.event.repository.name }}
+        run: wrangler pages project create "$PROJECT" --production-branch=main || true
+
+      # D1 databases are born on first deploy and found on every later one.
+      # Location hint weur pins the primary instance to Western Europe — the
+      # policy's "data v EU" claim depends on this flag, do not remove it.
+      #
+      # wrangler.toml is written here, not from the repository's
+      # wrangler.toml.sablona: a branch must not be able to bind another
+      # product's database or change the deploy settings. The content equals
+      # the template file (a SimteGen test compares them), which the local
+      # tools (uat_kontrola.py) keep using.
+      - name: Zajisti databaze a vygeneruj wrangler.toml
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PROJECT: ${{ github.event.repository.name }}
+        run: |
+          set -euo pipefail
+          zajisti_db() {
+            local nazev="$1"
+            local id
+            id=$(wrangler d1 list --json | jq -r --arg n "$nazev" '.[] | select(.name == $n) | .uuid')
+            if [ -z "$id" ]; then
+              wrangler d1 create "$nazev" --location weur >&2
+              id=$(wrangler d1 list --json | jq -r --arg n "$nazev" '.[] | select(.name == $n) | .uuid')
+            fi
+            [ -n "$id" ] || { echo "Databázi $nazev se nepodařilo zajistit." >&2; exit 1; }
+            echo "$id"
+          }
+          DB_ID=$(zajisti_db "$PROJECT-db")
+          NAHLED_ID=$(zajisti_db "$PROJECT-db-nahled")
+          cat > wrangler.toml <<EOF
+          name = "$PROJECT"
+          pages_build_output_dir = "web"
+          compatibility_date = "2025-06-01"
+
+          [[d1_databases]]
+          binding = "DB"
+          database_name = "$PROJECT-db"
+          database_id = "$DB_ID"
+          migrations_dir = "db/migrace"
+
+          [env.preview]
+
+          [[env.preview.d1_databases]]
+          binding = "DB"
+          database_name = "$PROJECT-db-nahled"
+          database_id = "$NAHLED_ID"
+          migrations_dir = "db/migrace"
+
+          [env.preview.vars]
+          VYVOJ = "ano"
+          EOF
+
+      # The migrations are SQL — data for D1, not code on this machine. A
+      # destructive one got this far only with the owner's signature
+      # (kontrola_migraci.py in the job above).
+      - name: Migrace databaze
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PROJECT: ${{ github.event.repository.name }}
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_REF_NAME" = "main" ]; then
+            wrangler d1 migrations apply "$PROJECT-db" --remote
+          else
+            wrangler d1 migrations apply "$PROJECT-db-nahled" --remote --env preview
+          fi
+
+      # The mailbox mirrors customer reports as issues in THIS repo. The
+      # token is an org secret (fine-grained, Issues: write on product
+      # repos); without it reports stay in the app only. Production only —
+      # preview deployments must never open issues from test data.
+      - name: Schranka (hlaseni jako issues)
+        if: github.ref_name == 'main' && env.GITHUB_ISSUES_TOKEN != ''
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PROJECT: ${{ github.event.repository.name }}
+          GITHUB_ISSUES_TOKEN: ${{ secrets.GITHUB_ISSUES_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GITHUB_ISSUES_TOKEN" | wrangler pages secret put GITHUB_ISSUES_TOKEN --project-name "$PROJECT"
+          printf '%s' "$REPO" | wrangler pages secret put GITHUB_REPO --project-name "$PROJECT"
+
+      # The mail key exists only in production: preview stays in the
+      # development login mode (link in the response), which is exactly what
+      # reviewing a build branch needs.
+      - name: Prihlasovaci e-maily pro produkci
+        if: github.ref_name == 'main' && vars.EMAIL_ODESILATEL != ''
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PROJECT: ${{ github.event.repository.name }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          EMAIL_ODESILATEL: ${{ vars.EMAIL_ODESILATEL }}
+        run: |
+          set -euo pipefail
+          [ -n "$RESEND_API_KEY" ] || { echo "EMAIL_ODESILATEL je nastaven, ale RESEND_API_KEY chybí."; exit 1; }
+          printf '%s' "$RESEND_API_KEY" | wrangler pages secret put RESEND_API_KEY --project-name "$PROJECT"
+          printf '%s' "$EMAIL_ODESILATEL" | wrangler pages secret put EMAIL_ODESILATEL --project-name "$PROJECT"
+          # Orders go to the operator's contact address (manifest), falling back to the sender.
+          KONTAKT=$(jq -r '(.kontakt_email // "") | strings' data-manifest.json)
+          [ -n "$KONTAKT" ] && printf '%s' "$KONTAKT" | wrangler pages secret put KONTAKT_EMAIL --project-name "$PROJECT" || true
+
+      # Selling in the Google Play app (functions/api/play.js from SimteGen):
+      # the order-only service account (it can see and acknowledge orders,
+      # nothing else) and the app's package. Before the deploy, so the first
+      # deploy already verifies purchases; the Vydani workflow sets the same
+      # for products born before this step existed.
+      - name: Nakupy v aplikaci (Google Play)
+        if: github.ref_name == 'main' && hashFiles('functions/api/play.js') != ''
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PROJECT: ${{ github.event.repository.name }}
+          PLAY_NAKUPY: ${{ secrets.PLAY_NAKUPY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          set -euo pipefail
+          BALICEK=$(jq -r '(.aplikace.balicek? // "") | strings' data-manifest.json)
+          if [ -z "$PLAY_NAKUPY" ] || [ -z "$BALICEK" ]; then
+            echo "Klíč pro nákupy (PLAY_NAKUPY_SERVICE_ACCOUNT_JSON) nebo balíček chybí — nákupy v aplikaci zatím nejdou ověřit."
+            exit 0
+          fi
+          printf '%s' "$PLAY_NAKUPY" | wrangler pages secret put PLAY_NAKUPY_UCET --project-name "$PROJECT" > /dev/null
+          printf '%s' "$BALICEK" | wrangler pages secret put PLAY_BALICEK --project-name "$PROJECT" > /dev/null
+
+      # A build/* branch is deployed as a preview BEFORE the merge, and the
+      # preview is public: the reviewer and the personas test the real site
+      # there. It runs in this job under the same rules — no repository code
+      # on this machine, the preview bound only to <repo>-db-nahled, the
+      # Pages secrets above set for production only — so the most a branch
+      # can do is publish a preview page, never read customers' data or the
+      # token.
+      - name: Nasad
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PROJECT: ${{ github.event.repository.name }}
+        run: wrangler pages deploy web --project-name="$PROJECT" --branch="$GITHUB_REF_NAME"
