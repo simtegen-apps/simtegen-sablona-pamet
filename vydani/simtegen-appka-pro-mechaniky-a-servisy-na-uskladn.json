@@ -1,9 +1,9 @@
 {
- "oznaceni": "nasazeni-20261119225343-c857",
+ "oznaceni": "nasazeni-20261119232542-de31",
  "stav": "success",
  "balicek": "cz.simtegen.pneusklad",
- "verze": "2026.11.19.2156",
- "kod": 1517636,
+ "verze": "2026.11.19.2228",
+ "kod": 1517668,
  "cilove_api": 36,
  "docasny_klic": false,
  "nahrano": true,
@@ -16,6 +16,6 @@
  "predplatne_play": true,
  "produkce": "preskoceno",
  "produkce_duvod": "aplikace ještě není v produkci — první vydání do produkce je ruční (Play Console)",
- "run_url": "https://github.com/simtegen-apps/simtegen-sablona-pamet/actions/runs/44623308332",
- "cas": "2026-11-19T21:59:04+00:00"
+ "run_url": "https://github.com/simtegen-apps/simtegen-sablona-pamet/actions/runs/44628526001",
+ "cas": "2026-11-19T22:31:48+00:00"
 }
