@@ -1,9 +1,9 @@
 {
- "oznaceni": "nasazeni-20261125115849-71c7",
+ "oznaceni": "nasazeni-20261125204641-bb4c",
  "stav": "success",
  "balicek": "cz.simtegen.kusovnik",
- "verze": "2026.11.25.1101",
- "kod": 1525621,
+ "verze": "2026.11.25.1948",
+ "kod": 1526148,
  "cilove_api": 36,
  "docasny_klic": false,
  "nahrano": true,
@@ -16,6 +16,6 @@
  "predplatne_play": true,
  "produkce": "preskoceno",
  "produkce_duvod": "aplikace ještě není v produkci — první vydání do produkce je ruční (Play Console)",
- "run_url": "https://github.com/simtegen-apps/simtegen-sablona-pamet/actions/runs/45600084606",
- "cas": "2026-11-25T11:04:27+00:00"
+ "run_url": "https://github.com/simtegen-apps/simtegen-sablona-pamet/actions/runs/45688533710",
+ "cas": "2026-11-25T19:52:09+00:00"
 }
