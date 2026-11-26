@@ -1,11 +1,11 @@
 {
- "cas": "2026-11-25T16:05:47+00:00",
+ "cas": "2026-11-26T15:47:50+00:00",
  "balicek": "cz.simtegen.pneusklad",
  "v_play": true,
- "kod": 1525621,
+ "kod": 1526164,
  "otisk": "33:56:5B:1D:5E:84:6B:EF:B7:42:ED:92:D1:89:A2:7C:DB:A5:DC:1E:6F:13:93:C1:27:8C:A9:55:74:BB:5C:A2",
  "vitals": {
-  "den": "2026-11-23",
+  "den": "2026-11-24",
   "pady": null,
   "pady_uzivatele": null,
   "zamrznuti": null,
