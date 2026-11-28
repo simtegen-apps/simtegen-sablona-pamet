@@ -1,0 +1,159 @@
+# Faktura k objednávce. Spouští ji SimteGen (firma) hned, jak v repu produktu
+# přibude issue „Objednávka #N“: číslo a částku přidělí sám (jedna číselná
+# řada firmy), tady se z databáze produktu vezmou fakturační údaje, vykreslí
+# PDF s QR platbou, pošle zákazníkovi (kopie na kontaktní e-mail firmy)
+# a objednávka se označí jako fakturovaná. Kopie pro účetní archiv odchází
+# jen zašifrovaná klíčem SimteGenu (artefakt archiv-faktury, viz konec).
+#
+# Proč tady a ne v repu produktu: workflow soubory v produktech se nikdy
+# neaktualizují (token bota na ně nesmí), repo šablony dostane každý merge
+# samo. Vstup `projekt` = kterýkoli produkt, i starší. Stejný vzor jako
+# Predplatne. Ručně jde spustit také (Actions → Faktura → Run workflow).
+#
+# run-name nese číslo faktury: SimteGen podle něj běh najde (dispatch žádné
+# id nevrací) a majiteli řekne, jestli faktura odešla.
+
+name: Faktura
+run-name: "Faktura ${{ inputs.cislo }} (${{ inputs.projekt }})"
+
+on:
+  workflow_dispatch:
+    inputs:
+      projekt:
+        description: "Název repa produktu"
+        required: true
+      objednavka:
+        description: "Id objednávky v databázi produktu"
+        required: true
+      cislo:
+        description: "Číslo faktury (přiděluje SimteGen)"
+        required: true
+      castka_czk:
+        description: "Celková částka v Kč (celé číslo)"
+        required: true
+      mesice:
+        description: "Počet měsíců předplatného"
+        required: true
+      vystaveno:
+        description: "Datum vystavení YYYY-MM-DD"
+        required: true
+      splatnost:
+        description: "Datum splatnosti YYYY-MM-DD"
+        required: true
+      dodavatel:
+        description: "JSON: nazev, ico, dic, sidlo, zapis_or, email, ucet, dph_sazba, archiv_klic"
+        required: true
+      popis:
+        description: "Text položky na faktuře"
+        required: true
+      podpis:
+        description: "Podpis SimteGenu (vyplňuje firma; ruční běh správce ho nepotřebuje)"
+        required: false
+        default: ""
+
+# Least privilege: the job only checks out this repository.
+permissions:
+  contents: read
+
+# One invoice at a time per product: two orders in the same minute must
+# not race on the same order row.
+concurrency:
+  group: faktura-${{ inputs.projekt }}
+  cancel-in-progress: false
+
+env:
+  # One exact wrangler for every call (a SimteGen test keeps it equal
+  # everywhere); bump by hand to a release at least two weeks old.
+  WRANGLER: wrangler@3.114.17
+
+jobs:
+  vystav:
+    # Only from main. The workflow file is the same on every branch (the
+    # bot token may not touch workflows), the scripts it runs are not: a
+    # branch pushed with a stolen token could carry its own .github/nastroje
+    # (over_pokyn.py included) next to these secrets. And only in the
+    # template repo: products inherit a copy of this file, and that copy
+    # must never run with the org secrets.
+    if: github.ref == 'refs/heads/main' && github.repository == 'simtegen-apps/simtegen-sablona-pamet'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # The bot token may dispatch this, so a stolen token must not be
+      # enough: a run passes only with SimteGen's signature or when a listed
+      # human started it (.github/nastroje/over_pokyn.py).
+      - name: Over pokyn (podpis SimteGenu nebo spravce)
+        env:
+          PODPIS_KLIC: ${{ vars.SIMTEGEN_PODPIS }}
+          SPRAVCI: ${{ vars.SIMTEGEN_SPRAVCI }}
+          # Who chose the inputs, not who pressed Re-run: with triggering_actor
+          # an admin re-running a forged, failed run let it through unsigned
+          # (security audit 19. 11. 2026).
+          AKTER: ${{ github.actor }}
+          WORKFLOW: ${{ github.workflow }}
+        run: python3 .github/nastroje/over_pokyn.py
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20
+
+      # One exact wrangler from the committed lockfile (integrity hashes), no
+      # install scripts, nothing looked up in the registry at run time. The
+      # files are checked against hashes in this workflow file, which the bot
+      # token cannot write (py ops/otisky_vydani.py rewrites them).
+      - name: Wrangler
+        run: |
+          set -euo pipefail
+          sha256sum --check --strict <<'OTISKY'
+          4fcbcc058abacae2ac38480d798fdfecb8690e33274211055a3a8cff302a261f  .github/nastroje/wrangler.package.json
+          1d85c79d1b64c522d125c07ab8d6eea85f7e3eac60e8c308f4154a3725016b5d  .github/nastroje/wrangler.lock.json
+          OTISKY
+          w="$RUNNER_TEMP/wrangler"
+          mkdir -p "$w"
+          cp .github/nastroje/wrangler.package.json "$w/package.json"
+          cp .github/nastroje/wrangler.lock.json "$w/package-lock.json"
+          (cd "$w" && npm ci --ignore-scripts --no-audit --no-fund --silent)
+          [ "$(jq -r .version "$w/node_modules/wrangler/package.json")" = "${WRANGLER##*@}" ] || {
+            echo "Zamceny wrangler neni verze z WRANGLER."; exit 1; }
+          echo "$w/node_modules/.bin" >> "$GITHUB_PATH"
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+
+      - name: Knihovny a fonty
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet --disable-pip-version-check --require-hashes -r .github/nastroje/knihovny_faktura.txt
+          if [ ! -f /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf ]; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq fonts-dejavu-core
+          fi
+
+      - name: Vystav a odesli fakturu
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          EMAIL_ODESILATEL: ${{ vars.EMAIL_ODESILATEL }}
+          PROJEKT: ${{ inputs.projekt }}
+          OBJEDNAVKA: ${{ inputs.objednavka }}
+          CISLO: ${{ inputs.cislo }}
+          CASTKA_CZK: ${{ inputs.castka_czk }}
+          MESICE: ${{ inputs.mesice }}
+          VYSTAVENO: ${{ inputs.vystaveno }}
+          SPLATNOST: ${{ inputs.splatnost }}
+        run: python3 .github/nastroje/faktura.py
+
+      # The accounting archive's copy, and only ENCRYPTED. This runs in the
+      # public template repo, and a public repo's artifacts can be downloaded
+      # by any signed-in GitHub user — the invoice carries the customer's
+      # name, address and e-mail. faktura.py writes vystup/archiv.sifra with
+      # SimteGen's public key (dodavatel.archiv_klic); only SimteGen on the
+      # mini PC can open it, and it files it with the invoice's doklad. The
+      # plain PDF is never uploaded. No key (an older SimteGen) = no file.
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: archiv-faktury
+          path: vystup/archiv.sifra
+          if-no-files-found: ignore
+          retention-days: 7

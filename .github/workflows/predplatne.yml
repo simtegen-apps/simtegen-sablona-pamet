@@ -1,0 +1,158 @@
+# Označení platby: majitel dostal peníze (faktura, banka) a zapíše zaplacené
+# období do databáze produktu. Tohle je jediné místo, kde se peníze potkají
+# s aplikací — aplikace sama s platbou nikdy nepracuje, jen čte plati_do.
+#
+# Spouští se ručně: Actions → Predplatne → Run workflow (jde i z telefonu
+# v aplikaci GitHub). Vstup `projekt` je název repa produktu. Běží jen
+# v repu ŠABLONY (simtegen-sablona-pamet): odtud se označí platba kterémukoli
+# produktu (org secrets jsou společné); kopie v produktech se přeskočí.
+# Účet musí existovat — zákazník se nejdřív přihlásí.
+#
+# SimteGen na workflow soubory nesahá — jeho token na ně nemá právo.
+
+name: Predplatne
+
+on:
+  workflow_dispatch:
+    inputs:
+      email:
+        description: "E-mail účtu zákazníka"
+        required: true
+      mesice:
+        description: "Kolik měsíců přidat (1–24); navazuje na konec aktuálního období"
+        required: true
+        default: "1"
+      poznamka:
+        description: "Poznámka k platbě (např. číslo faktury)"
+        required: false
+        default: ""
+      projekt:
+        description: "Název repa produktu"
+        required: true
+      podpis:
+        description: "Podpis SimteGenu (vyplňuje firma; ruční běh správce ho nepotřebuje)"
+        required: false
+        default: ""
+
+# Least privilege: the job only checks out this repository.
+permissions:
+  contents: read
+
+env:
+  # One exact wrangler for every call (a SimteGen test keeps it equal
+  # everywhere); bump by hand to a release at least two weeks old.
+  WRANGLER: wrangler@3.114.17
+
+jobs:
+  oznac:
+    # Only from main. The workflow file is the same on every branch (the
+    # bot token may not touch workflows), the scripts it runs are not: a
+    # branch pushed with a stolen token could carry its own .github/nastroje
+    # (over_pokyn.py included) next to these secrets. And only in the
+    # template repo: products inherit a copy of this file, and that copy
+    # must never run with the org secrets.
+    if: github.ref == 'refs/heads/main' && github.repository == 'simtegen-apps/simtegen-sablona-pamet'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # The bot token may dispatch this, so a stolen token must not be
+      # enough: a run passes only with SimteGen's signature or when a listed
+      # human started it (.github/nastroje/over_pokyn.py).
+      - name: Over pokyn (podpis SimteGenu nebo spravce)
+        env:
+          PODPIS_KLIC: ${{ vars.SIMTEGEN_PODPIS }}
+          SPRAVCI: ${{ vars.SIMTEGEN_SPRAVCI }}
+          # Who chose the inputs, not who pressed Re-run: with triggering_actor
+          # an admin re-running a forged, failed run let it through unsigned
+          # (security audit 19. 11. 2026).
+          AKTER: ${{ github.actor }}
+          WORKFLOW: ${{ github.workflow }}
+        run: python3 .github/nastroje/over_pokyn.py
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20
+
+      # One exact wrangler from the committed lockfile (integrity hashes), no
+      # install scripts, nothing looked up in the registry at run time. The
+      # files are checked against hashes in this workflow file, which the bot
+      # token cannot write (py ops/otisky_vydani.py rewrites them).
+      - name: Wrangler
+        run: |
+          set -euo pipefail
+          sha256sum --check --strict <<'OTISKY'
+          4fcbcc058abacae2ac38480d798fdfecb8690e33274211055a3a8cff302a261f  .github/nastroje/wrangler.package.json
+          1d85c79d1b64c522d125c07ab8d6eea85f7e3eac60e8c308f4154a3725016b5d  .github/nastroje/wrangler.lock.json
+          OTISKY
+          w="$RUNNER_TEMP/wrangler"
+          mkdir -p "$w"
+          cp .github/nastroje/wrangler.package.json "$w/package.json"
+          cp .github/nastroje/wrangler.lock.json "$w/package-lock.json"
+          (cd "$w" && npm ci --ignore-scripts --no-audit --no-fund --silent)
+          [ "$(jq -r .version "$w/node_modules/wrangler/package.json")" = "${WRANGLER##*@}" ] || {
+            echo "Zamceny wrangler neni verze z WRANGLER."; exit 1; }
+          echo "$w/node_modules/.bin" >> "$GITHUB_PATH"
+
+      - name: Zapis zaplacene obdobi
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PROJEKT: ${{ inputs.projekt }}
+          MESICE: ${{ inputs.mesice }}
+        run: |
+          set -euo pipefail
+          # This repo is public and so are its Actions logs: the customer's
+          # e-mail must never appear in them. It is read from the event file,
+          # not passed through env: (GitHub prints a step's env in the log),
+          # and masked first, so even a wrangler error that echoes the SQL
+          # prints *** instead of the address.
+          EMAIL=$(jq -r '.inputs.email // ""' "$GITHUB_EVENT_PATH")
+          POZNAMKA=$(jq -r '.inputs.poznamka // ""' "$GITHUB_EVENT_PATH")
+          echo "::add-mask::$EMAIL"
+          email_lc=$(printf '%s' "$EMAIL" | tr '[:upper:]' '[:lower:]')
+          echo "::add-mask::$email_lc"
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "Org secrets CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID nejsou dostupne (Private repo?)."
+            exit 1
+          fi
+          if ! [[ "$PROJEKT" =~ ^[A-Za-z0-9._-]+$ ]]; then
+            echo "projekt musi byt nazev repa produktu."
+            exit 1
+          fi
+          if ! [[ "$MESICE" =~ ^[0-9]+$ ]] || [ "$MESICE" -lt 1 ] || [ "$MESICE" -gt 24 ]; then
+            echo "mesice musi byt cele cislo 1-24."
+            exit 1
+          fi
+          # Inputs come from the owner, but they still go into SQL text:
+          # lower-case the e-mail (login stores it that way) and double any
+          # apostrophe — wrangler has no bind parameters on the CLI.
+          email=$(printf '%s' "$EMAIL" | tr '[:upper:]' '[:lower:]' | sed "s/'/''/g")
+          pozn=$(printf '%s' "$POZNAMKA" | sed "s/'/''/g")
+          DB="$PROJEKT-db"
+
+          SQL="INSERT INTO predplatne (uzivatel_id, plati_do, poznamka, zmeneno)
+               SELECT u.id,
+                      CAST(strftime('%s', datetime(MAX(unixepoch(), COALESCE(p.plati_do, 0)), 'unixepoch', '+$MESICE months')) AS INTEGER),
+                      '$pozn', unixepoch()
+               FROM uzivatele u LEFT JOIN predplatne p ON p.uzivatel_id = u.id
+               WHERE u.email = '$email'
+               ON CONFLICT(uzivatel_id) DO UPDATE SET
+                 plati_do = excluded.plati_do, poznamka = excluded.poznamka, zmeneno = excluded.zmeneno;"
+          wrangler d1 execute "$DB" --remote --command "$SQL" > /dev/null
+          # The ledger row: the review counts first and second payments from it.
+          DENIK="INSERT INTO platby (uzivatel_id, mesice, poznamka)
+                 SELECT id, $MESICE, '$pozn' FROM uzivatele WHERE email = '$email';"
+          wrangler d1 execute "$DB" --remote --command "$DENIK" > /dev/null
+
+          KONTROLA="SELECT u.email, datetime(p.plati_do, 'unixepoch') AS plati_do
+                    FROM predplatne p JOIN uzivatele u ON u.id = p.uzivatel_id
+                    WHERE u.email = '$email';"
+          vysledek=$(wrangler d1 execute "$DB" --remote --json --command "$KONTROLA")
+          pocet=$(printf '%s' "$vysledek" | jq '.[0].results | length')
+          if [ "$pocet" != "1" ]; then
+            echo "Ucet se zadanym e-mailem v databazi $DB neexistuje - zakaznik se musi nejdriv prihlasit."
+            exit 1
+          fi
+          echo "Predplatne zapsano:"
+          printf '%s' "$vysledek" | jq -r '.[0].results[0] | "  plati do \(.plati_do) UTC"'

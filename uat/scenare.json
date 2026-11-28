@@ -1,0 +1,103 @@
+{
+  "popis": "Akceptační scénáře produktu. CI je spouští proti skutečnému API (uat_kontrola.py): účty A a B jsou přihlášené, „nikdo“ je bez přihlášení. Stavitel sem převádí akceptační scénáře ze schválené specifikace a ponechává scénáře šablony.",
+  "scenare": [
+    {
+      "nazev": "Zákazník napíše firmě a zprávu vidí jen on",
+      "kroky": [
+        {
+          "jako": "A",
+          "pozadavek": "POST /api/hlaseni",
+          "telo": {
+            "text": "Tisk štítku nefunguje UAT-hlaseni-A",
+            "kontext": {
+              "verze": "1.0",
+              "obrazovka": "obrazovka-aplikace",
+              "okno": "390×844",
+              "chyby": []
+            }
+          },
+          "ocekavam": 200,
+          "uloz": {
+            "hlaseni_id": "id"
+          }
+        },
+        {
+          "jako": "A",
+          "pozadavek": "GET /api/hlaseni",
+          "ocekavam": 200,
+          "obsahuje": [
+            "UAT-hlaseni-A"
+          ]
+        },
+        {
+          "jako": "B",
+          "pozadavek": "GET /api/hlaseni",
+          "ocekavam": 200,
+          "neobsahuje": [
+            "UAT-hlaseni-A"
+          ]
+        },
+        {
+          "jako": "nikdo",
+          "pozadavek": "GET /api/hlaseni",
+          "ocekavam": 401
+        }
+      ]
+    },
+    {
+      "nazev": "Kdo se nemůže přihlásit, nahlásí chybu i bez účtu",
+      "kroky": [
+        {
+          "jako": "nikdo",
+          "pozadavek": "POST /api/nahlasit",
+          "telo": {
+            "text": "Nepřišel mi přihlašovací odkaz UAT-anonym",
+            "kontext": {
+              "verze": "1.0",
+              "obrazovka": "obrazovka-prihlaseni"
+            }
+          },
+          "ocekavam": 200,
+          "obsahuje": [
+            "prijato"
+          ]
+        },
+        {
+          "jako": "nikdo",
+          "pozadavek": "POST /api/nahlasit",
+          "telo": {
+            "text": ""
+          },
+          "ocekavam": 422
+        }
+      ]
+    },
+    {
+      "nazev": "Zákazník si stáhne svá data a smaže účet",
+      "kroky": [
+        {
+          "jako": "A",
+          "pozadavek": "GET /api/ucet/export",
+          "ocekavam": 200,
+          "obsahuje": [
+            "uat-a@example.cz",
+            "UAT-hlaseni-A"
+          ]
+        },
+        {
+          "jako": "A",
+          "pozadavek": "POST /api/ucet/smazat",
+          "ocekavam": 200
+        },
+        {
+          "jako": "A",
+          "pozadavek": "GET /api/ja",
+          "ocekavam": 200,
+          "obsahuje": [
+            "\"prihlasen\":false"
+          ]
+        }
+      ]
+    }
+  ]
+}

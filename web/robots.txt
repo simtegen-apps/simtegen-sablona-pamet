@@ -1,0 +1,4 @@
+# GENEROVANÝ SOUBOR z data-manifest.json (vykresli_seo.py) — needituj ručně.
+User-agent: *
+Allow: /
+Disallow: /api/
